@@ -16,7 +16,7 @@ public:
                         QWidget* parent = nullptr);
 
 private slots:
-    void onPixelInfoChanged(int x, int y, int r, int g, int b);
+        void onPixelInfoChanged(int x, int y, int r, int g, int b);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -29,13 +29,19 @@ private:
     void updateIndexLabel();
     void goToIndex(int index);
 
+    void moveCurrentImage();
+
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;
     QLabel* rgbLabel_   = nullptr;
     QLabel* indexLabel_ = nullptr;
 
-    QVector<QString> imageFiles_; // pełne ścieżki
+    QVector<QString> imageFiles_;      // pełne ścieżki
     int currentIndex_ = -1;
+
+    // NEW: katalog bazowy (skanowany) i historia katalogów docelowych
+    QString baseDirectory_;
+    QVector<QString> recentMoveDirs_;
 };
 
 #endif // MAINWINDOW_H

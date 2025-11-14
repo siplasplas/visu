@@ -9,6 +9,12 @@
 #include <QMenuBar>
 #include <QAction>
 #include <QKeyEvent>
+#include <QCursor>
+#include <QDialog>
+#include <QVBoxLayout>
+#include <QComboBox>
+#include <QDialogButtonBox>
+#include <QMessageBox>
 
 #include <opencv2/opencv.hpp>
 
@@ -32,6 +38,7 @@ MainWindow::MainWindow(const QString& startFilePath, QWidget* parent)
         dirPath = QDir::currentPath();
     }
 
+    baseDirectory_ = dirPath;              // NEW: zapamiętujemy katalog bazowy
     scanDirectory(dirPath, normalizedStartFile);
 
     if (!imageFiles_.isEmpty()) {
@@ -39,7 +46,7 @@ MainWindow::MainWindow(const QString& startFilePath, QWidget* parent)
             currentIndex_ = 0;
         loadImageAt(currentIndex_);
     } else {
-        setWindowTitle("visu - (brak obrazów)");
+        setWindowTitle("visu - (no images)");
     }
 
     resize(1024, 768);
@@ -65,8 +72,15 @@ void MainWindow::initUi()
     connect(imageWidget_, &ImageWidget::pixelInfoChanged,
             this, &MainWindow::onPixelInfoChanged);
 
-    // Możesz dodać menu / akcje później
     auto fileMenu = menuBar()->addMenu(tr("&File"));
+
+    // NEW: Move...
+    auto moveAct = new QAction(tr("Move..."), this);
+    moveAct->setShortcut(Qt::Key_M);       // zwykła litera 'm'
+    connect(moveAct, &QAction::triggered,
+            this, &MainWindow::moveCurrentImage);
+    fileMenu->addAction(moveAct);
+
     auto quitAct = new QAction(tr("Quit"), this);
     connect(quitAct, &QAction::triggered, this, &QWidget::close);
     fileMenu->addAction(quitAct);
@@ -87,6 +101,8 @@ void MainWindow::scanDirectory(const QString& directory, const QString& startFil
 {
     imageFiles_.clear();
     currentIndex_ = -1;
+
+    baseDirectory_ = directory;
 
     QDir dir(directory);
     QFileInfoList entries = dir.entryInfoList(
@@ -124,16 +140,18 @@ void MainWindow::loadImageAt(int index)
     const QString& path = imageFiles_[index];
     cv::Mat img = cv::imread(path.toStdString(), cv::IMREAD_COLOR);
     if (img.empty()) {
-        // plik nieczytelny – można dodać komunikat, na razie pomijamy
         return;
     }
 
     currentIndex_ = index;
     imageWidget_->setImage(img);
 
-    QPoint globalPos = QCursor::pos();
-    QPoint widgetPos = imageWidget_->mapFromGlobal(globalPos);
-    imageWidget_->updatePixelInfoAt(widgetPos);
+    // od razu przeliczamy piksel pod kursorem
+    {
+        QPoint globalPos = QCursor::pos();
+        QPoint widgetPos = imageWidget_->mapFromGlobal(globalPos);
+        imageWidget_->updatePixelInfoAt(widgetPos);
+    }
 
     QFileInfo fi(path);
     setWindowTitle(QString("visu - %1").arg(fi.fileName()));
@@ -156,8 +174,7 @@ void MainWindow::updateIndexLabel()
     );
 }
 
-void MainWindow::goToIndex(int index)
-{
+void MainWindow::goToIndex(int index) {
     if (imageFiles_.isEmpty())
         return;
 
@@ -237,4 +254,131 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
     if (!handled) {
         QMainWindow::keyPressEvent(event);
     }
+}
+
+void MainWindow::moveCurrentImage()
+{
+    if (imageFiles_.isEmpty() || currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return;
+
+    const QString currentFile = imageFiles_[currentIndex_];
+    QFileInfo curInfo(currentFile);
+    const QString currentDir = curInfo.absolutePath();
+
+    // Dialog: edytowalny combo z historią
+    QDialog dlg(this);
+    dlg.setWindowTitle(tr("Move image"));
+
+    QVBoxLayout* layout = new QVBoxLayout(&dlg);
+
+    QLabel* label = new QLabel(tr("Move current image to directory:"), &dlg);
+    layout->addWidget(label);
+
+    QComboBox* combo = new QComboBox(&dlg);
+    combo->setEditable(true);
+
+    // wypełniamy historią katalogów
+    for (const QString& dir : recentMoveDirs_) {
+        combo->addItem(dir);
+    }
+
+    // domyślny tekst – np. ".." jako przykład względnej ścieżki
+    if (!recentMoveDirs_.isEmpty()) {
+        combo->setEditText(recentMoveDirs_.front());
+    } else {
+        combo->setEditText("..");
+    }
+
+    layout->addWidget(combo);
+
+    QDialogButtonBox* buttons = new QDialogButtonBox(
+        QDialogButtonBox::Ok | QDialogButtonBox::Cancel,
+        Qt::Horizontal, &dlg
+    );
+    layout->addWidget(buttons);
+
+    QObject::connect(buttons, &QDialogButtonBox::accepted, &dlg, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, &dlg, &QDialog::reject);
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    QString text = combo->currentText().trimmed();
+    if (text.isEmpty())
+        return;
+
+    // Rozszerzenie ~ na katalog domowy
+    if (text == "~") {
+        text = QDir::homePath();
+    } else if (text.startsWith("~/")) {
+        text.replace(0, 1, QDir::homePath());
+    }
+
+    QString targetDirPath;
+    if (QDir::isAbsolutePath(text)) {
+        targetDirPath = QDir::cleanPath(text);
+    } else {
+        // względnie do bieżącego katalogu (skanowanego)
+        QDir baseDir(baseDirectory_.isEmpty() ? currentDir : baseDirectory_);
+        targetDirPath = QDir::cleanPath(baseDir.absoluteFilePath(text));
+    }
+
+    // Sprawdzenie, czy to nie jest bieżący katalog
+    QString normalizedCurrentDir = QDir::cleanPath(currentDir);
+    QString normalizedTargetDir  = QDir::cleanPath(targetDirPath);
+
+    if (normalizedTargetDir == normalizedCurrentDir) {
+        QMessageBox::warning(this, tr("Move image"),
+                             tr("Target directory is the current directory.\nNothing to do."));
+        return;
+    }
+
+    QDir targetDir(normalizedTargetDir);
+    if (!targetDir.exists()) {
+        QMessageBox::warning(this, tr("Move image"),
+                             tr("Target directory does not exist:\n%1").arg(normalizedTargetDir));
+        return;
+    }
+
+    const QString fileName = curInfo.fileName();
+    const QString targetFilePath = targetDir.filePath(fileName);
+
+    if (QFile::exists(targetFilePath)) {
+        QMessageBox::warning(this, tr("Move image"),
+                             tr("File already exists in target directory:\n%1").arg(targetFilePath));
+        return;
+    }
+
+    if (!QFile::rename(currentFile, targetFilePath)) {
+        QMessageBox::warning(this, tr("Move image"),
+                             tr("Failed to move file:\n%1\n→\n%2")
+                                 .arg(currentFile, targetFilePath));
+        return;
+    }
+
+    // Aktualizacja historii katalogów (unikalne, ostatnio użyty na początku)
+    int idx = recentMoveDirs_.indexOf(normalizedTargetDir);
+    if (idx >= 0)
+        recentMoveDirs_.removeAt(idx);
+    recentMoveDirs_.prepend(normalizedTargetDir);
+    if (recentMoveDirs_.size() > 10) {
+        recentMoveDirs_.removeLast();
+    }
+
+    // Usuwamy plik z listy i przechodzimy do następnego
+    imageFiles_.removeAt(currentIndex_);
+
+    if (imageFiles_.isEmpty()) {
+        currentIndex_ = -1;
+        imageWidget_->setImage(cv::Mat());
+        setWindowTitle("visu - (no images)");
+        updateIndexLabel();
+        onPixelInfoChanged(-1, -1, -1, -1, -1);
+        return;
+    }
+
+    if (currentIndex_ >= imageFiles_.size())
+        currentIndex_ = imageFiles_.size() - 1;
+
+    loadImageAt(currentIndex_);
 }
