@@ -131,6 +131,10 @@ void MainWindow::loadImageAt(int index)
     currentIndex_ = index;
     imageWidget_->setImage(img);
 
+    QPoint globalPos = QCursor::pos();
+    QPoint widgetPos = imageWidget_->mapFromGlobal(globalPos);
+    imageWidget_->updatePixelInfoAt(widgetPos);
+
     QFileInfo fi(path);
     setWindowTitle(QString("visu - %1").arg(fi.fileName()));
     updateIndexLabel();

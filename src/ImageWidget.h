@@ -15,6 +15,8 @@ public:
     void setImage(const cv::Mat& mat);
     const cv::Mat& imageMat() const { return imageMat_; }
 
+    void updatePixelInfoAt(const QPoint& widgetPos);
+
     signals:
         void pixelInfoChanged(int x, int y, int r, int g, int b);
 

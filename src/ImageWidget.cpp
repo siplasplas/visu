@@ -62,12 +62,17 @@ void ImageWidget::paintEvent(QPaintEvent*)
 
 void ImageWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    updatePixelInfoAt(event->pos());
+}
+
+void ImageWidget::updatePixelInfoAt(const QPoint& pos)
+{
     if (imageMat_.empty() || qimage_.isNull()) {
         emit pixelInfoChanged(-1, -1, -1, -1, -1);
         return;
     }
 
-    if (!targetRect_.contains(event->pos())) {
+    if (!targetRect_.contains(pos)) {
         emit pixelInfoChanged(-1, -1, -1, -1, -1);
         return;
     }
@@ -75,14 +80,14 @@ void ImageWidget::mouseMoveEvent(QMouseEvent* event)
     double scaleX = double(qimage_.width())  / double(targetRect_.width());
     double scaleY = double(qimage_.height()) / double(targetRect_.height());
 
-    int imgX = int((event->pos().x() - targetRect_.left()) * scaleX);
-    int imgY = int((event->pos().y() - targetRect_.top())  * scaleY);
+    int imgX = int((pos.x() - targetRect_.left()) * scaleX);
+    int imgY = int((pos.y() - targetRect_.top())  * scaleY);
 
     if (imgX < 0 || imgY < 0 ||
         imgX >= imageMat_.cols || imgY >= imageMat_.rows) {
         emit pixelInfoChanged(-1, -1, -1, -1, -1);
         return;
-    }
+        }
 
     int r = -1, g = -1, b = -1;
 
@@ -94,8 +99,6 @@ void ImageWidget::mouseMoveEvent(QMouseEvent* event)
     } else if (imageMat_.channels() == 1) {
         uchar v = imageMat_.at<uchar>(imgY, imgX);
         r = g = b = int(v);
-    } else {
-        // inne formaty można obsłużyć później
     }
 
     emit pixelInfoChanged(imgX, imgY, r, g, b);
