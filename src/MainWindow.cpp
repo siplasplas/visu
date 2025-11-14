@@ -265,30 +265,20 @@ void MainWindow::moveCurrentImage()
     QFileInfo curInfo(currentFile);
     const QString currentDir = curInfo.absolutePath();
 
-    // Dialog: edytowalny combo z historią
     QDialog dlg(this);
     dlg.setWindowTitle(tr("Move image"));
 
     QVBoxLayout* layout = new QVBoxLayout(&dlg);
 
-    QLabel* label = new QLabel(tr("Move current image to directory:"), &dlg);
-    layout->addWidget(label);
+    layout->addWidget(new QLabel(tr("Move current image to directory:"), &dlg));
 
     QComboBox* combo = new QComboBox(&dlg);
     combo->setEditable(true);
 
-    // wypełniamy historią katalogów
-    for (const QString& dir : recentMoveDirs_) {
+    for (const QString& dir : recentMoveDirs_)
         combo->addItem(dir);
-    }
 
-    // domyślny tekst – np. ".." jako przykład względnej ścieżki
-    if (!recentMoveDirs_.isEmpty()) {
-        combo->setEditText(recentMoveDirs_.front());
-    } else {
-        combo->setEditText("..");
-    }
-
+    combo->setEditText("");   // NEW: brak domyślnej propozycji
     layout->addWidget(combo);
 
     QDialogButtonBox* buttons = new QDialogButtonBox(
@@ -307,45 +297,39 @@ void MainWindow::moveCurrentImage()
     if (text.isEmpty())
         return;
 
-    // Rozszerzenie ~ na katalog domowy
-    if (text == "~") {
-        text = QDir::homePath();
-    } else if (text.startsWith("~/")) {
-        text.replace(0, 1, QDir::homePath());
-    }
+    if (text == "~") text = QDir::homePath();
+    else if (text.startsWith("~/")) text.replace(0, 1, QDir::homePath());
 
     QString targetDirPath;
-    if (QDir::isAbsolutePath(text)) {
+    if (QDir::isAbsolutePath(text))
         targetDirPath = QDir::cleanPath(text);
-    } else {
-        // względnie do bieżącego katalogu (skanowanego)
-        QDir baseDir(baseDirectory_.isEmpty() ? currentDir : baseDirectory_);
-        targetDirPath = QDir::cleanPath(baseDir.absoluteFilePath(text));
-    }
+    else
+        targetDirPath = QDir::cleanPath(QDir(baseDirectory_).absoluteFilePath(text));
 
-    // Sprawdzenie, czy to nie jest bieżący katalog
     QString normalizedCurrentDir = QDir::cleanPath(currentDir);
     QString normalizedTargetDir  = QDir::cleanPath(targetDirPath);
 
-    if (normalizedTargetDir == normalizedCurrentDir) {
+    QDir checkDir;
+    if (!checkDir.exists(normalizedTargetDir)) {
+        if (!checkDir.mkpath(normalizedTargetDir)) {
+            QMessageBox::warning(this, tr("Move image"),
+                                 tr("Failed to create directory:\n%1")
+                                     .arg(normalizedTargetDir));
+            return;
+        }
+    }
+
+    if (normalizedCurrentDir == normalizedTargetDir) {
         QMessageBox::warning(this, tr("Move image"),
                              tr("Target directory is the current directory.\nNothing to do."));
         return;
     }
 
-    QDir targetDir(normalizedTargetDir);
-    if (!targetDir.exists()) {
-        QMessageBox::warning(this, tr("Move image"),
-                             tr("Target directory does not exist:\n%1").arg(normalizedTargetDir));
-        return;
-    }
-
-    const QString fileName = curInfo.fileName();
-    const QString targetFilePath = targetDir.filePath(fileName);
+    QString targetFilePath = QDir(normalizedTargetDir).filePath(curInfo.fileName());
 
     if (QFile::exists(targetFilePath)) {
         QMessageBox::warning(this, tr("Move image"),
-                             tr("File already exists in target directory:\n%1").arg(targetFilePath));
+                             tr("File already exists:\n%1").arg(targetFilePath));
         return;
     }
 
@@ -356,24 +340,19 @@ void MainWindow::moveCurrentImage()
         return;
     }
 
-    // Aktualizacja historii katalogów (unikalne, ostatnio użyty na początku)
-    int idx = recentMoveDirs_.indexOf(normalizedTargetDir);
-    if (idx >= 0)
-        recentMoveDirs_.removeAt(idx);
+    recentMoveDirs_.removeAll(normalizedTargetDir);
     recentMoveDirs_.prepend(normalizedTargetDir);
-    if (recentMoveDirs_.size() > 10) {
+    if (recentMoveDirs_.size() > 10)
         recentMoveDirs_.removeLast();
-    }
 
-    // Usuwamy plik z listy i przechodzimy do następnego
     imageFiles_.removeAt(currentIndex_);
 
     if (imageFiles_.isEmpty()) {
         currentIndex_ = -1;
         imageWidget_->setImage(cv::Mat());
-        setWindowTitle("visu - (no images)");
         updateIndexLabel();
-        onPixelInfoChanged(-1, -1, -1, -1, -1);
+        onPixelInfoChanged(-1,-1,-1,-1,-1);
+        setWindowTitle("visu - (no images)");
         return;
     }
 
