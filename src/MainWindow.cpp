@@ -1,5 +1,6 @@
 #include "MainWindow.h"
 #include "ImageWidget.h"
+#include "DoubleThresholdDialog.h"
 
 #include <QStatusBar>
 #include <QLabel>
@@ -74,9 +75,8 @@ void MainWindow::initUi()
 
     auto fileMenu = menuBar()->addMenu(tr("&File"));
 
-    // NEW: Move...
     auto moveAct = new QAction(tr("Move..."), this);
-    moveAct->setShortcut(Qt::Key_M);       // zwykła litera 'm'
+    moveAct->setShortcut(Qt::Key_M);
     connect(moveAct, &QAction::triggered,
             this, &MainWindow::moveCurrentImage);
     fileMenu->addAction(moveAct);
@@ -84,8 +84,15 @@ void MainWindow::initUi()
     auto quitAct = new QAction(tr("Quit"), this);
     connect(quitAct, &QAction::triggered, this, &QWidget::close);
     fileMenu->addAction(quitAct);
-}
 
+    auto imageMenu = menuBar()->addMenu(tr("&Image"));
+
+    auto doubleThAct = new QAction(tr("Double Threshold..."), this);
+    doubleThAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    connect(doubleThAct, &QAction::triggered,
+            this, &MainWindow::openDoubleThresholdDialog);
+    imageMenu->addAction(doubleThAct);
+}
 bool MainWindow::isImageFile(const QString& filePath) const
 {
     static const QStringList exts = {
@@ -144,9 +151,12 @@ void MainWindow::loadImageAt(int index)
     }
 
     currentIndex_ = index;
-    imageWidget_->setImage(img);
 
-    // od razu przeliczamy piksel pod kursorem
+    originalMat_ = img.clone();
+    currentMat_  = img.clone();
+    imageWidget_->setImage(currentMat_);
+
+    // przelicz piksel pod kursorem
     {
         QPoint globalPos = QCursor::pos();
         QPoint widgetPos = imageWidget_->mapFromGlobal(globalPos);
@@ -349,10 +359,12 @@ void MainWindow::moveCurrentImage()
 
     if (imageFiles_.isEmpty()) {
         currentIndex_ = -1;
+        originalMat_.release();
+        currentMat_.release();
         imageWidget_->setImage(cv::Mat());
-        updateIndexLabel();
-        onPixelInfoChanged(-1,-1,-1,-1,-1);
         setWindowTitle("visu - (no images)");
+        updateIndexLabel();
+        onPixelInfoChanged(-1, -1, -1, -1, -1);
         return;
     }
 
@@ -360,4 +372,73 @@ void MainWindow::moveCurrentImage()
         currentIndex_ = imageFiles_.size() - 1;
 
     loadImageAt(currentIndex_);
+}
+
+void MainWindow::openDoubleThresholdDialog()
+{
+    if (originalMat_.empty())
+        return;
+
+    auto* dlg = new DoubleThresholdDialog(this);
+
+    // Preview
+    connect(dlg, &DoubleThresholdDialog::previewRequested,
+            this, [this](int low, int high) {
+                cv::Mat preview = applyDoubleThreshold(originalMat_, low, high);
+                currentMat_ = preview.clone();
+                imageWidget_->setImage(currentMat_);
+            });
+
+    // OK – zastosuj progowanie (jeszcze raz, na oryginale, na wypadek braku Preview)
+    connect(dlg, &QDialog::accepted,
+            this, [this, dlg]() {
+                int low  = dlg->low();
+                int high = dlg->high();
+                cv::Mat result = applyDoubleThreshold(originalMat_, low, high);
+                currentMat_ = result.clone();
+                imageWidget_->setImage(currentMat_);
+                dlg->close();
+            });
+
+    // Cancel – wróć do oryginału
+    connect(dlg, &QDialog::rejected,
+            this, [this, dlg]() {
+                if (!originalMat_.empty()) {
+                    currentMat_ = originalMat_.clone();
+                    imageWidget_->setImage(currentMat_);
+                }
+                dlg->close();
+            });
+
+    dlg->show();
+}
+
+cv::Mat MainWindow::applyDoubleThreshold(const cv::Mat& src, int low, int high)
+{
+    int L = std::clamp(low, 0, 255);
+    int H = std::clamp(high, 0, 255);
+    if (L > H)
+        std::swap(L, H);
+
+    cv::Mat gray;
+    if (src.channels() == 3)
+        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = src.clone();
+
+    cv::Mat dst = gray.clone();
+
+    for (int y = 0; y < dst.rows; ++y) {
+        uchar* row = dst.ptr<uchar>(y);
+        for (int x = 0; x < dst.cols; ++x) {
+            uchar v = row[x];
+            if (v <= L)
+                row[x] = 0;
+            else if (v >= H)
+                row[x] = 255;
+            // pomiędzy L i H pozostaje bez zmian
+        }
+    }
+
+    return dst;
 }

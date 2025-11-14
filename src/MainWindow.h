@@ -5,8 +5,11 @@
 #include <QVector>
 #include <QString>
 
+#include <opencv2/opencv.hpp>
+
 class QLabel;
 class ImageWidget;
+class DoubleThresholdDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -16,7 +19,7 @@ public:
                         QWidget* parent = nullptr);
 
 private slots:
-        void onPixelInfoChanged(int x, int y, int r, int g, int b);
+    void onPixelInfoChanged(int x, int y, int r, int g, int b);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -31,17 +34,24 @@ private:
 
     void moveCurrentImage();
 
+    // NEW: double threshold
+    void openDoubleThresholdDialog();
+    cv::Mat applyDoubleThreshold(const cv::Mat& src, int low, int high);
+
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;
     QLabel* rgbLabel_   = nullptr;
     QLabel* indexLabel_ = nullptr;
 
-    QVector<QString> imageFiles_;      // pełne ścieżki
+    QVector<QString> imageFiles_;
     int currentIndex_ = -1;
 
-    // NEW: katalog bazowy (skanowany) i historia katalogów docelowych
     QString baseDirectory_;
     QVector<QString> recentMoveDirs_;
+
+    // NEW: obrazy w pamięci
+    cv::Mat originalMat_;
+    cv::Mat currentMat_;
 };
 
 #endif // MAINWINDOW_H

@@ -17,11 +17,10 @@ add_executable(visu
         src/MainWindow.cpp
         src/ImageWidget.h
         src/ImageWidget.cpp
-        src/main.cpp
-        src/ImageWidget.h
-        src/ImageWidget.cpp
-        src/MainWindow.h
-        src/MainWindow.cpp
+        src/DoubleThresholdDialog.h
+        src/DoubleThresholdDialog.cpp
+        src/DoubleThresholdDialog.cpp
+        src/DoubleThresholdDialog.h
 )
 
 target_include_directories(visu PRIVATE
