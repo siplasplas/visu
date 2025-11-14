@@ -6,6 +6,7 @@
 #include <QSpinBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
+#include <QCheckBox>
 
 DoubleThresholdDialog::DoubleThresholdDialog(QWidget* parent)
     : QDialog(parent)
@@ -17,27 +18,37 @@ DoubleThresholdDialog::DoubleThresholdDialog(QWidget* parent)
 
     auto* mainLayout = new QVBoxLayout(this);
 
-    // Wiersz 1: Low
+    // Wiersz 1: Low + checkbox (żółty)
     {
         auto* row = new QHBoxLayout;
         auto* label = new QLabel(tr("Low threshold:"), this);
         lowSpin_ = new QSpinBox(this);
         lowSpin_->setRange(0, 255);
         lowSpin_->setValue(0);
+
+        lowCheck_ = new QCheckBox(tr("Highlight low (yellow)"), this);
+        lowCheck_->setChecked(false);
+
         row->addWidget(label);
         row->addWidget(lowSpin_);
+        row->addWidget(lowCheck_);
         mainLayout->addLayout(row);
     }
 
-    // Wiersz 2: High
+    // Wiersz 2: High + checkbox (czerwony)
     {
         auto* row = new QHBoxLayout;
         auto* label = new QLabel(tr("High threshold:"), this);
         highSpin_ = new QSpinBox(this);
         highSpin_->setRange(0, 255);
         highSpin_->setValue(255);
+
+        highCheck_ = new QCheckBox(tr("Highlight high (red)"), this);
+        highCheck_->setChecked(false);
+
         row->addWidget(label);
         row->addWidget(highSpin_);
+        row->addWidget(highCheck_);
         mainLayout->addLayout(row);
     }
 
@@ -69,5 +80,7 @@ int DoubleThresholdDialog::high() const
 
 void DoubleThresholdDialog::onPreviewClicked()
 {
-    emit previewRequested(low(), high());
+    const bool lowColorize  = lowCheck_  && lowCheck_->isChecked();
+    const bool highColorize = highCheck_ && highCheck_->isChecked();
+    emit previewRequested(low(), high(), lowColorize, highColorize);
 }

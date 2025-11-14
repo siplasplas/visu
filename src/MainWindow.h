@@ -34,9 +34,11 @@ private:
 
     void moveCurrentImage();
 
-    // NEW: double threshold
     void openDoubleThresholdDialog();
-    cv::Mat applyDoubleThreshold(const cv::Mat& src, int low, int high);
+    cv::Mat applyDoubleThresholdBW(const cv::Mat& src, int low, int high);
+    cv::Mat applyDoubleThresholdPreview(const cv::Mat& src, int low, int high,
+                                        bool lowColorize, bool highColorize);
+
 
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;

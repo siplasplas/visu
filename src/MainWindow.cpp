@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "ImageWidget.h"
 #include "DoubleThresholdDialog.h"
+#include <algorithm>
 
 #include <QStatusBar>
 #include <QLabel>
@@ -381,26 +382,38 @@ void MainWindow::openDoubleThresholdDialog()
 
     auto* dlg = new DoubleThresholdDialog(this);
 
-    // Preview
+    // PREVIEW – używa kolorów zależnie od checkboxów
     connect(dlg, &DoubleThresholdDialog::previewRequested,
-            this, [this](int low, int high) {
-                cv::Mat preview = applyDoubleThreshold(originalMat_, low, high);
+            this, [this](int low, int high, bool lowColor, bool highColor) {
+                cv::Mat preview = applyDoubleThresholdPreview(originalMat_, low, high,
+                                                              lowColor, highColor);
                 currentMat_ = preview.clone();
                 imageWidget_->setImage(currentMat_);
             });
 
-    // OK – zastosuj progowanie (jeszcze raz, na oryginale, na wypadek braku Preview)
+    // OK – zawsze klasyczne BW, niezależnie od checkboxów
     connect(dlg, &QDialog::accepted,
             this, [this, dlg]() {
                 int low  = dlg->low();
                 int high = dlg->high();
-                cv::Mat result = applyDoubleThreshold(originalMat_, low, high);
+
+                cv::Mat result = applyDoubleThresholdBW(originalMat_, low, high);
                 currentMat_ = result.clone();
                 imageWidget_->setImage(currentMat_);
+
+                // zapis na dysk
+                if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
+                    const QString path = imageFiles_[currentIndex_];
+                    cv::imwrite(path.toStdString(), currentMat_);
+                }
+
+                // nowa baza
+                originalMat_ = currentMat_.clone();
+
                 dlg->close();
             });
 
-    // Cancel – wróć do oryginału
+    // Cancel – powrót do oryginału
     connect(dlg, &QDialog::rejected,
             this, [this, dlg]() {
                 if (!originalMat_.empty()) {
@@ -413,9 +426,9 @@ void MainWindow::openDoubleThresholdDialog()
     dlg->show();
 }
 
-cv::Mat MainWindow::applyDoubleThreshold(const cv::Mat& src, int low, int high)
+cv::Mat MainWindow::applyDoubleThresholdBW(const cv::Mat& src, int low, int high)
 {
-    int L = std::clamp(low, 0, 255);
+    int L = std::clamp(low,  0, 255);
     int H = std::clamp(high, 0, 255);
     if (L > H)
         std::swap(L, H);
@@ -436,7 +449,58 @@ cv::Mat MainWindow::applyDoubleThreshold(const cv::Mat& src, int low, int high)
                 row[x] = 0;
             else if (v >= H)
                 row[x] = 255;
-            // pomiędzy L i H pozostaje bez zmian
+            // środek: bez zmian
+        }
+    }
+
+    return dst;
+}
+
+cv::Mat MainWindow::applyDoubleThresholdPreview(const cv::Mat& src,
+int low, int high,
+bool lowColorize,
+bool highColorize) {
+    int L = std::clamp(low, 0, 255);
+    int H = std::clamp(high, 0, 255);
+    if (L > H)
+        std::swap(L, H);
+    cv::Mat gray;
+    if (src.channels() == 3)
+        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = src.clone();
+
+    cv::Mat dst(gray.size(), CV_8UC3);
+
+    for (int y = 0; y < gray.rows; ++y) {
+        const uchar* srcRow = gray.ptr<uchar>(y);
+        cv::Vec3b* dstRow   = dst.ptr<cv::Vec3b>(y);
+
+        for (int x = 0; x < gray.cols; ++x) {
+            uchar v = srcRow[x];
+
+            // domyślnie – szarość
+            cv::Vec3b color(v, v, v); // B=G=R=v
+
+            if (v <= L) {
+                if (lowColorize) {
+                    // żółty: BGR = (0,255,255)
+                    color = cv::Vec3b(0, 255, 255);
+                } else {
+                    // klasyczny czarny
+                    color = cv::Vec3b(0, 0, 0);
+                }
+            } else if (v >= H) {
+                if (highColorize) {
+                    // czerwony: BGR = (0,0,255)
+                    color = cv::Vec3b(0, 0, 255);
+                } else {
+                    // klasyczna biel
+                    color = cv::Vec3b(255, 255, 255);
+                }
+            }
+
+            dstRow[x] = color;
         }
     }
 
