@@ -391,27 +391,33 @@ void MainWindow::openDoubleThresholdDialog()
                 imageWidget_->setImage(currentMat_);
             });
 
-    // OK – zawsze klasyczne BW, niezależnie od checkboxów
     connect(dlg, &QDialog::accepted,
-            this, [this, dlg]() {
-                int low  = dlg->low();
-                int high = dlg->high();
+        this, [this, dlg]() {
 
-                cv::Mat result = applyDoubleThresholdBW(originalMat_, low, high);
-                currentMat_ = result.clone();
-                imageWidget_->setImage(currentMat_);
+            // 1) Wczytujemy spinboxy
+            int low  = dlg->low();
+            int high = dlg->high();
 
-                // zapis na dysk
-                if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
-                    const QString path = imageFiles_[currentIndex_];
-                    cv::imwrite(path.toStdString(), currentMat_);
-                }
+            if (!dlg->lowApplyChecked())  low  = 0;
+            if (!dlg->highApplyChecked()) high = 255;
 
-                // nowa baza
-                originalMat_ = currentMat_.clone();
+            // 3) Kolorów NIE bierzemy pod uwagę → BW
+            cv::Mat result = applyDoubleThresholdBW(originalMat_, low, high);
 
-                dlg->close();
-            });
+            currentMat_ = result.clone();
+            imageWidget_->setImage(currentMat_);
+
+            // 4) zapis na dysk
+            if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
+                const QString path = imageFiles_[currentIndex_];
+                cv::imwrite(path.toStdString(), currentMat_);
+            }
+
+            // 5) nowa baza
+            originalMat_ = currentMat_.clone();
+
+            dlg->close();
+        });
 
     // Cancel – powrót do oryginału
     connect(dlg, &QDialog::rejected,

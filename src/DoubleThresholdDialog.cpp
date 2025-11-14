@@ -2,7 +2,6 @@
 
 #include <QVBoxLayout>
 #include <QHBoxLayout>
-#include <QLabel>
 #include <QSpinBox>
 #include <QDialogButtonBox>
 #include <QPushButton>
@@ -18,37 +17,47 @@ DoubleThresholdDialog::DoubleThresholdDialog(QWidget* parent)
 
     auto* mainLayout = new QVBoxLayout(this);
 
-    // Wiersz 1: Low + checkbox (żółty)
+    // Wiersz 1: [apply] [spinbox low] [color checkbox]
     {
         auto* row = new QHBoxLayout;
-        auto* label = new QLabel(tr("Low threshold:"), this);
+
+        lowApply_ = new QCheckBox(tr("apply"), this);
+        lowApply_->setChecked(true);
+
         lowSpin_ = new QSpinBox(this);
         lowSpin_->setRange(0, 255);
         lowSpin_->setValue(0);
 
-        lowCheck_ = new QCheckBox(tr("Highlight low (yellow)"), this);
-        lowCheck_->setChecked(false);
+        lowColorChk_ = new QCheckBox(this);
+        lowColorChk_->setToolTip(tr("Highlight low values (yellow) in preview"));
+        lowColorChk_->setChecked(false);
 
-        row->addWidget(label);
+        row->addWidget(lowApply_);
         row->addWidget(lowSpin_);
-        row->addWidget(lowCheck_);
+        row->addWidget(lowColorChk_);
+
         mainLayout->addLayout(row);
     }
 
-    // Wiersz 2: High + checkbox (czerwony)
+    // Wiersz 2: [apply] [spinbox high] [color checkbox]
     {
         auto* row = new QHBoxLayout;
-        auto* label = new QLabel(tr("High threshold:"), this);
+
+        highApply_ = new QCheckBox(tr("apply"), this);
+        highApply_->setChecked(true);
+
         highSpin_ = new QSpinBox(this);
         highSpin_->setRange(0, 255);
         highSpin_->setValue(255);
 
-        highCheck_ = new QCheckBox(tr("Highlight high (red)"), this);
-        highCheck_->setChecked(false);
+        highColorChk_ = new QCheckBox(this);
+        highColorChk_->setToolTip(tr("Highlight high values (red) in preview"));
+        highColorChk_->setChecked(false);
 
-        row->addWidget(label);
+        row->addWidget(highApply_);
         row->addWidget(highSpin_);
-        row->addWidget(highCheck_);
+        row->addWidget(highColorChk_);
+
         mainLayout->addLayout(row);
     }
 
@@ -59,13 +68,43 @@ DoubleThresholdDialog::DoubleThresholdDialog(QWidget* parent)
 
     mainLayout->addWidget(buttons);
 
+    // Przycisk Preview
     connect(previewBtn_, &QPushButton::clicked,
             this, &DoubleThresholdDialog::onPreviewClicked);
 
+    // OK / Cancel jak wcześniej
     connect(okBtn, &QPushButton::clicked,
             this, &QDialog::accept);
     connect(cancelBtn, &QPushButton::clicked,
             this, &QDialog::reject);
+
+    // AUTO-PREVIEW:
+    // wszystkie 4 checkboxy i oba spinboxy przy zmianie wywołują preview
+
+    if (lowSpin_) {
+        connect(lowSpin_, qOverload<int>(&QSpinBox::valueChanged),
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
+    if (highSpin_) {
+        connect(highSpin_, qOverload<int>(&QSpinBox::valueChanged),
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
+    if (lowApply_) {
+        connect(lowApply_, &QCheckBox::toggled,
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
+    if (highApply_) {
+        connect(highApply_, &QCheckBox::toggled,
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
+    if (lowColorChk_) {
+        connect(lowColorChk_, &QCheckBox::toggled,
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
+    if (highColorChk_) {
+        connect(highColorChk_, &QCheckBox::toggled,
+                this, &DoubleThresholdDialog::onPreviewClicked);
+    }
 }
 
 int DoubleThresholdDialog::low() const
@@ -80,7 +119,30 @@ int DoubleThresholdDialog::high() const
 
 void DoubleThresholdDialog::onPreviewClicked()
 {
-    const bool lowColorize  = lowCheck_  && lowCheck_->isChecked();
-    const bool highColorize = highCheck_ && highCheck_->isChecked();
-    emit previewRequested(low(), high(), lowColorize, highColorize);
+    if (!lowSpin_ || !highSpin_)
+        return;
+
+    int lowVal  = lowSpin_->value();
+    int highVal = highSpin_->value();
+
+    const bool lowApply    = (lowApply_    && lowApply_->isChecked());
+    const bool highApply   = (highApply_   && highApply_->isChecked());
+    const bool lowColorize = (lowColorChk_ && lowColorChk_->isChecked());
+    const bool highColorize= (highColorChk_&& highColorChk_->isChecked());
+
+    // Logika "apply": gdy odznaczone – w PREVIEW traktujemy jako 0 / 255
+    if (!lowApply)
+        lowVal = 0;
+    if (!highApply)
+        highVal = 255;
+
+    emit previewRequested(lowVal, highVal, lowColorize, highColorize);
+}
+
+bool DoubleThresholdDialog::lowApplyChecked() const {
+    return lowApply_ && lowApply_->isChecked();
+}
+
+bool DoubleThresholdDialog::highApplyChecked() const {
+    return highApply_ && highApply_->isChecked();
 }
