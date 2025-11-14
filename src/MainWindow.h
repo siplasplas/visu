@@ -54,6 +54,10 @@ private:
     // NEW: obrazy w pamięci
     cv::Mat originalMat_;
     cv::Mat currentMat_;
+
+    void openDirectory();
+    void openFile();
+
 };
 
 #endif // MAINWINDOW_H

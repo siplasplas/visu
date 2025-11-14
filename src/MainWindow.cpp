@@ -17,6 +17,7 @@
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QMessageBox>
+#include <QFileDialog>
 
 #include <opencv2/opencv.hpp>
 
@@ -76,6 +77,21 @@ void MainWindow::initUi()
 
     auto fileMenu = menuBar()->addMenu(tr("&File"));
 
+    // NEW: Open File...
+    auto openFileAct = new QAction(tr("Open File..."), this);
+    openFileAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_O));
+    connect(openFileAct, &QAction::triggered,
+            this, &MainWindow::openFile);
+    fileMenu->addAction(openFileAct);
+
+    // NEW: Open Directory...
+    auto openDirAct = new QAction(tr("Open Directory..."), this);
+    openDirAct->setShortcut(QKeySequence(Qt::CTRL | Qt::SHIFT | Qt::Key_O));
+    connect(openDirAct, &QAction::triggered,
+            this, &MainWindow::openDirectory);
+    fileMenu->addAction(openDirAct);
+
+    // Move...
     auto moveAct = new QAction(tr("Move..."), this);
     moveAct->setShortcut(Qt::Key_M);
     connect(moveAct, &QAction::triggered,
@@ -94,6 +110,7 @@ void MainWindow::initUi()
             this, &MainWindow::openDoubleThresholdDialog);
     imageMenu->addAction(doubleThAct);
 }
+
 bool MainWindow::isImageFile(const QString& filePath) const
 {
     static const QStringList exts = {
@@ -511,4 +528,89 @@ bool highColorize) {
     }
 
     return dst;
+}
+
+void MainWindow::openDirectory()
+{
+    QFileDialog dlg(this, tr("Select directory"));
+    dlg.setFileMode(QFileDialog::Directory);
+    dlg.setOption(QFileDialog::ShowDirsOnly, true);
+    dlg.setOption(QFileDialog::DontUseNativeDialog, true);
+
+    if (!baseDirectory_.isEmpty())
+        dlg.setDirectory(baseDirectory_);
+    else
+        dlg.setDirectory(QDir::currentPath());
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QString dir = dlg.selectedFiles().value(0);
+    if (dir.isEmpty())
+        return;
+
+    scanDirectory(dir, QString());
+
+    if (imageFiles_.isEmpty()) {
+        // czyścimy widok
+        currentIndex_ = -1;
+        originalMat_.release();
+        currentMat_.release();
+        imageWidget_->setImage(cv::Mat());
+        setWindowTitle("visu - (no images)");
+        updateIndexLabel();
+        onPixelInfoChanged(-1, -1, -1, -1, -1);
+        return;
+    }
+
+    currentIndex_ = 0;
+    loadImageAt(currentIndex_);
+}
+
+void MainWindow::openFile()
+{
+    QFileDialog dlg(this, tr("Select image"));
+    dlg.setFileMode(QFileDialog::ExistingFile);
+    dlg.setOption(QFileDialog::DontUseNativeDialog, true);
+    dlg.setNameFilter(
+        tr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp);;All files (*.*)")
+    );
+
+    if (!baseDirectory_.isEmpty())
+        dlg.setDirectory(baseDirectory_);
+    else
+        dlg.setDirectory(QDir::currentPath());
+
+    if (dlg.exec() != QDialog::Accepted)
+        return;
+
+    const QString path = dlg.selectedFiles().value(0);
+    if (path.isEmpty())
+        return;
+
+    QFileInfo fi(path);
+    if (!fi.exists() || !fi.isFile())
+        return;
+
+    const QString dir  = fi.absolutePath();
+    const QString file = fi.absoluteFilePath();
+
+    // przeskanuj katalog pliku i ustaw się na nim
+    scanDirectory(dir, file);
+
+    if (imageFiles_.isEmpty()) {
+        currentIndex_ = -1;
+        originalMat_.release();
+        currentMat_.release();
+        imageWidget_->setImage(cv::Mat());
+        setWindowTitle("visu - (no images)");
+        updateIndexLabel();
+        onPixelInfoChanged(-1, -1, -1, -1, -1);
+        return;
+    }
+
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        currentIndex_ = 0;
+
+    loadImageAt(currentIndex_);
 }
