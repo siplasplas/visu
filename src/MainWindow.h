@@ -18,12 +18,16 @@ public:
 private slots:
     void onPixelInfoChanged(int x, int y, int r, int g, int b);
 
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+
 private:
     void initUi();
     void scanDirectory(const QString& directory, const QString& startFilePath);
     bool isImageFile(const QString& filePath) const;
     void loadImageAt(int index);
     void updateIndexLabel();
+    void goToIndex(int index);
 
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;

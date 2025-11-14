@@ -8,6 +8,7 @@
 #include <QFileInfoList>
 #include <QMenuBar>
 #include <QAction>
+#include <QKeyEvent>
 
 #include <opencv2/opencv.hpp>
 
@@ -151,6 +152,22 @@ void MainWindow::updateIndexLabel()
     );
 }
 
+void MainWindow::goToIndex(int index)
+{
+    if (imageFiles_.isEmpty())
+        return;
+
+    if (index < 0)
+        index = 0;
+    if (index >= imageFiles_.size())
+        index = imageFiles_.size() - 1;
+
+    if (index == currentIndex_)
+        return;
+
+    loadImageAt(index);
+}
+
 void MainWindow::onPixelInfoChanged(int x, int y, int r, int g, int b)
 {
     if (x < 0 || y < 0) {
@@ -174,5 +191,46 @@ void MainWindow::onPixelInfoChanged(int x, int y, int r, int g, int b)
                 .arg(g)
                 .arg(b)
         );
+    }
+}
+
+void MainWindow::keyPressEvent(QKeyEvent* event)
+{
+    if (imageFiles_.isEmpty()) {
+        QMainWindow::keyPressEvent(event);
+        return;
+    }
+
+    bool handled = false;
+
+    switch (event->key()) {
+        case Qt::Key_Left:
+        case Qt::Key_PageUp:
+            goToIndex(currentIndex_ - 1);
+            handled = true;
+            break;
+
+        case Qt::Key_Right:
+        case Qt::Key_PageDown:
+            goToIndex(currentIndex_ + 1);
+            handled = true;
+            break;
+
+        case Qt::Key_Home:
+            goToIndex(0);
+            handled = true;
+            break;
+
+        case Qt::Key_End:
+            goToIndex(imageFiles_.size() - 1);
+            handled = true;
+            break;
+
+        default:
+            break;
+    }
+
+    if (!handled) {
+        QMainWindow::keyPressEvent(event);
     }
 }
