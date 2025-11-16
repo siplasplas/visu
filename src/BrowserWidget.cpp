@@ -24,8 +24,8 @@ BrowserWidget::BrowserWidget(QWidget* parent)
 
 void BrowserWidget::onDirectorySelected(const QModelIndex& index)
 {
-    QString dirPath = fsModel_->filePath(index);
-    startLoadingThumbnails(dirPath);
+    const QString dirPath = fsModel_->filePath(index);
+    ensureDirectoryLoaded(dirPath);
 }
 
 void BrowserWidget::onThumbnailsFinished()
@@ -70,9 +70,6 @@ void BrowserWidget::initUi()
 
 void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
 {
-    cancelThumbnailLoading();
-
-    currentDir_ = dirPath;
     cancelFlag_ = false;
 
     auto future = QtConcurrent::run([this, dirPath]() {
@@ -143,30 +140,25 @@ void BrowserWidget::ensureDirectoryLoaded(const QString& dirPath)
     if (dirPath.isEmpty())
         return;
 
-    // different directory than before → full switch
-    if (currentDir_ != dirPath) {
-        cancelThumbnailLoading();
-
-        currentDir_ = dirPath;
-
-        // setting root in the tree (lazy directories)
-        QModelIndex idx = fsModel_->index(dirPath);
-        if (idx.isValid())
-            tree_->setRootIndex(idx);
-
-        // clear old thumbnails
-        QLayoutItem* item;
-        while ((item = gridLayout_->takeAt(0)) != nullptr) {
-            delete item->widget();
-            delete item;
-        }
-
-        startLoadingThumbnails(dirPath);
+    if (currentDir_ == dirPath && gridLayout_->count() > 0)
         return;
+
+    cancelThumbnailLoading();
+    currentDir_ = dirPath;
+
+    // select and expand folder in tree, but don't change root
+    QModelIndex idx = fsModel_->index(dirPath);
+    if (idx.isValid()) {
+        tree_->setCurrentIndex(idx);
+        tree_->scrollTo(idx);
+        tree_->expand(idx);
     }
 
-    // same directory:
-    // - if it is still loading → do nothing (continues in the background)
-    // - if it is finished and thumbnails are present → also do nothing
-    // (if necessary, you can add checking for changes on the disk later)
+    QLayoutItem* item;
+    while ((item = gridLayout_->takeAt(0)) != nullptr) {
+        delete item->widget();
+        delete item;
+    }
+
+    startLoadingThumbnails(dirPath);
 }
