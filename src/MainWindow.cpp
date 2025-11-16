@@ -241,6 +241,8 @@ void MainWindow::loadImageAt(int index)
     currentIndex_ = index;
 
     originalMat_ = img.clone();
+    imageDirty_    = false;
+    safeOnlyDirty_ = true;
     currentMat_  = img.clone();
     imageWidget_->setImage(currentMat_);
 
@@ -358,6 +360,12 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
         }
 
         switch (event->key()) {
+            case Qt::Key_L:
+                rotateCurrentImageLeft();
+                return;
+            case Qt::Key_R:
+                rotateCurrentImageRight();
+                return;
             case Qt::Key_Delete:
                 deleteCurrentImageToTrash();
                 return;
@@ -544,6 +552,7 @@ void MainWindow::openDoubleThresholdDialog()
             imageWidget_->setImage(currentMat_);
 
             imageDirty_ = true;
+            safeOnlyDirty_ = false;
 
             cv::Mat gray;
             if (originalMat_.channels() == 3)
@@ -848,6 +857,7 @@ void MainWindow::openShadowCompressionDialog()
             imageWidget_->setImage(currentMat_);
 
             imageDirty_ = true;
+            safeOnlyDirty_ = false;
 
             cv::Mat gray;
             if (originalMat_.channels() == 3)
@@ -926,7 +936,7 @@ bool MainWindow::maybeSaveCurrentImage()
 
     // checkbox: restore original timestamp
     QCheckBox* tsCheck = new QCheckBox(tr("Restore original timestamp"), &msg);
-    tsCheck->setChecked(false); // domyślnie WYŁĄCZONY
+    tsCheck->setChecked(safeOnlyDirty_);
     msg.setCheckBox(tsCheck);
 
     msg.exec();
@@ -974,6 +984,7 @@ bool MainWindow::saveCurrentImage(bool restoreTimestamp)
     }
 
     imageDirty_ = false;
+    safeOnlyDirty_ = true;
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)
@@ -1001,6 +1012,8 @@ void MainWindow::revertCurrentImage()
     }
 
     originalMat_ = img.clone();
+    imageDirty_    = false;
+    safeOnlyDirty_ = true;
     currentMat_  = img.clone();
     imageWidget_->setImage(currentMat_);
 
@@ -1113,4 +1126,52 @@ void MainWindow::deleteCurrentImageToTrash()
 
     currentIndex_ = nextIndex;
     loadImageAt(currentIndex_);
+}
+
+void MainWindow::rotateCurrentImageLeft()
+{
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return;
+    if (originalMat_.empty())
+        return;
+
+    cv::Mat rotated;
+    cv::rotate(originalMat_, rotated, cv::ROTATE_90_COUNTERCLOCKWISE);
+
+    originalMat_ = rotated.clone();
+    currentMat_  = rotated.clone();
+    imageWidget_->setImage(currentMat_);
+
+    imageDirty_    = true;
+
+    cv::Mat gray;
+    if (originalMat_.channels() == 3)
+        cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = originalMat_;
+    computeHistogram(gray);
+}
+
+void MainWindow::rotateCurrentImageRight()
+{
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return;
+    if (originalMat_.empty())
+        return;
+
+    cv::Mat rotated;
+    cv::rotate(originalMat_, rotated, cv::ROTATE_90_CLOCKWISE);
+
+    originalMat_ = rotated.clone();
+    currentMat_  = rotated.clone();
+    imageWidget_->setImage(currentMat_);
+
+    imageDirty_    = true;
+
+    cv::Mat gray;
+    if (originalMat_.channels() == 3)
+        cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = originalMat_;
+    computeHistogram(gray);
 }

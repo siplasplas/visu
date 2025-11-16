@@ -89,6 +89,9 @@ private:
     std::array<uint64_t, 256> histogram_{};   // current histogram 0..255
 
     bool imageDirty_ = false;          // czy bieżący obraz zmodyfikowany
+    bool safeOnlyDirty_ = true;
+    void rotateCurrentImageLeft();
+    void rotateCurrentImageRight();
     QDateTime originalFileTime_;       // czas pliku przy wczytaniu
     bool hasOriginalFileTime_ = false; // czy mamy ważny timestamp
 
