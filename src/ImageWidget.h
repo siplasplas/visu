@@ -22,7 +22,7 @@ public:
     void zoomFit();         // key 'f'
 
     void updatePixelInfoAt(const QPoint& widgetPos);
-
+    void clearImage();
 signals:
     void pixelInfoChanged(int x, int y, int r, int g, int b);
 

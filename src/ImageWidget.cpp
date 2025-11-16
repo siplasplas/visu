@@ -421,3 +421,14 @@ void ImageWidget::zoomFit()
     panOffset_   = QPoint(0, 0);
     update();
 }
+
+void ImageWidget::clearImage()
+{
+    qimage_ = QImage();
+    targetRect_ = QRect();
+    panOffset_ = QPoint(0, 0);
+    zoomMode_ = ZoomMode::AutoFit;
+    scaleFactor_ = 1.0;
+    panning_ = false;
+    update();
+}

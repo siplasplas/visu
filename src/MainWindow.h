@@ -92,6 +92,9 @@ private:
     bool maybeSaveCurrentImage();      // popup Save / Discard / Cancel
     bool saveCurrentImage(bool restoreTimestamp);
     void revertCurrentImage();
+
+    void deleteCurrentImageToTrash();
+    bool isInTrash(const QString& path) const;
 };
 
 #endif // MAINWINDOW_H

@@ -23,6 +23,9 @@
 #include <QFile>
 #include <QCheckBox>
 #include <QPushButton>
+#include <QMessageBox>
+#include <QStandardPaths>
+#include <QDir>
 
 #include <opencv2/opencv.hpp>
 
@@ -341,6 +344,9 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
         }
 
         switch (event->key()) {
+            case Qt::Key_Delete:
+                deleteCurrentImageToTrash();
+                return;
             case Qt::Key_Escape:
                 if (!currentImageDir_.isEmpty())
                     browserWidget_->ensureDirectoryLoaded(currentImageDir_);
@@ -1004,4 +1010,92 @@ void MainWindow::closeEvent(QCloseEvent* event)
         return;
     }
     QMainWindow::closeEvent(event);
+}
+
+bool MainWindow::isInTrash(const QString& path) const
+{
+#ifdef Q_OS_UNIX
+    QFileInfo fi(path);
+    const QString filePath = fi.absoluteFilePath();
+
+    // Typical XDG: ~/.local/share/Trash/files
+    const QString trashRoot =
+        QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation)
+        + "/Trash/files";
+
+    QDir trashDir(trashRoot);
+    const QString trashPrefix = trashDir.absolutePath();
+
+    return filePath.startsWith(trashPrefix);
+#else
+    Q_UNUSED(path);
+    return false;
+#endif
+}
+
+void MainWindow::deleteCurrentImageToTrash()
+{
+    if (stacked_->currentWidget() != imageWidget_)
+        return;
+
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return;
+
+    const QString path = imageFiles_[currentIndex_];
+
+    // 1) Are we in the trash? → lock
+    if (isInTrash(path)) {
+        QMessageBox::warning(this,
+                             tr("Cannot delete"),
+                             tr("You are viewing a file in the Trash.\n"
+                                "Deleting files from Trash is not allowed."));
+        return;
+    }
+
+    QFileInfo fi(path);
+    const QString name = fi.fileName();
+
+    QMessageBox msg(this);
+    msg.setIcon(QMessageBox::Question);
+    msg.setWindowTitle(tr("Move to trash"));
+    msg.setText(tr("Move \"%1\" to trash?").arg(name));
+    msg.setStandardButtons(QMessageBox::Yes | QMessageBox::No);
+    msg.setDefaultButton(QMessageBox::Yes);
+
+    const int ret = msg.exec();
+    if (ret != QMessageBox::Yes)
+        return;
+
+    // 4) Move to trash
+    QString error;
+    if (!QFile::moveToTrash(path, &error)) {
+        QMessageBox::warning(this,
+                             tr("Move to trash failed"),
+                             tr("Could not move \"%1\" to trash.\n%2")
+                                 .arg(path, error));
+        return;
+    }
+
+    // 5) Usuwamy z listy i przechodzimy do następnego obrazka
+    const int removedIndex = currentIndex_;
+    imageFiles_.removeAt(removedIndex);
+    imageDirty_ = false;
+
+    if (imageFiles_.isEmpty()) {
+        // brak kolejnych obrazów
+        currentIndex_ = -1;
+        originalMat_.release();
+        currentMat_.release();
+        imageWidget_->clearImage();
+        updateIndexLabel();   // np. "0/0" albo pusty
+        switchToBrowserMode(); // możesz chcieć wrócić do Browser
+        return;
+    }
+
+    int nextIndex = removedIndex;
+    if (nextIndex >= imageFiles_.size())
+        nextIndex = imageFiles_.size() - 1;
+
+    currentIndex_ = nextIndex;
+    loadImageAt(currentIndex_);
 }
