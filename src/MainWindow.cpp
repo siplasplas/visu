@@ -68,6 +68,7 @@ MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     QString file = fi.absoluteFilePath();
 
     scanDirectory(dir, file);   // set imageFiles_, currentIndex_
+    browserWidget_->ensureDirectoryLoaded(dir);
     if (!imageFiles_.isEmpty()) {
         loadImageAt(currentIndex_);
         switchToSingleMode();
@@ -166,6 +167,7 @@ bool MainWindow::isImageFile(const QString& filePath) const
 
 void MainWindow::scanDirectory(const QString& directory, const QString& startFilePath)
 {
+    currentImageDir_ = directory;
     imageFiles_.clear();
     currentIndex_ = -1;
 
@@ -310,6 +312,8 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 
     switch (event->key()) {
         case Qt::Key_Escape:
+            if (!currentImageDir_.isEmpty())
+                browserWidget_->ensureDirectoryLoaded(currentImageDir_);
             switchToBrowserMode();
             break;
         case Qt::Key_Left:

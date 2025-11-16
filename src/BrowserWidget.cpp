@@ -72,13 +72,7 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
 {
     cancelThumbnailLoading();
 
-    // clear previous thumbs
-    QLayoutItem* item;
-    while ((item = gridLayout_->takeAt(0)) != nullptr) {
-        delete item->widget();
-        delete item;
-    }
-
+    currentDir_ = dirPath;
     cancelFlag_ = false;
 
     auto future = QtConcurrent::run([this, dirPath]() {
@@ -88,9 +82,6 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
                     << "*.gif" << "*.webp" << "*.tif" << "*.tiff";
 
         QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);
-
-        // 2. alphabetical sorting (QDir::Name already does this,
-        //    but we do it explicitly so that it is always deterministic)
         files.sort(Qt::CaseInsensitive);
 
         for (const QString& fn : files) {
@@ -102,7 +93,8 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
             if (img.isNull())
                 continue;
 
-            QImage thumb = img.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation);
+            QImage thumb = img.scaled(160, 160, Qt::KeepAspectRatio,
+                                      Qt::SmoothTransformation);
 
             QMetaObject::invokeMethod(
                 this,
@@ -144,4 +136,37 @@ void BrowserWidget::setRootDirectory(const QString& path)
     QModelIndex idx = fsModel_->index(path);
     if (idx.isValid())
         tree_->setRootIndex(idx);
+}
+
+void BrowserWidget::ensureDirectoryLoaded(const QString& dirPath)
+{
+    if (dirPath.isEmpty())
+        return;
+
+    // different directory than before → full switch
+    if (currentDir_ != dirPath) {
+        cancelThumbnailLoading();
+
+        currentDir_ = dirPath;
+
+        // setting root in the tree (lazy directories)
+        QModelIndex idx = fsModel_->index(dirPath);
+        if (idx.isValid())
+            tree_->setRootIndex(idx);
+
+        // clear old thumbnails
+        QLayoutItem* item;
+        while ((item = gridLayout_->takeAt(0)) != nullptr) {
+            delete item->widget();
+            delete item;
+        }
+
+        startLoadingThumbnails(dirPath);
+        return;
+    }
+
+    // same directory:
+    // - if it is still loading → do nothing (continues in the background)
+    // - if it is finished and thumbnails are present → also do nothing
+    // (if necessary, you can add checking for changes on the disk later)
 }

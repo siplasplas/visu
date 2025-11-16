@@ -62,6 +62,7 @@ private:
 
     QString baseDirectory_;
     QVector<QString> recentMoveDirs_;
+    QString currentImageDir_;
 
     cv::Mat originalMat_;
     cv::Mat currentMat_;
