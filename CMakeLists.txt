@@ -39,6 +39,8 @@ add_executable(visu
         src/ImageFormats.h
         src/SaveAsDialog.cpp
         src/SaveAsDialog.h
+        src/image_metrics.cpp
+        src/image_metrics.h
 )
 
 find_package(PkgConfig REQUIRED)
