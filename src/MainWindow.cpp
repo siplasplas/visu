@@ -30,6 +30,7 @@
 #include <opencv2/opencv.hpp>
 
 #include "avif_opencv.h"
+#include "jpeg_lossless.h"
 
 MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     : QMainWindow(parent)
@@ -243,6 +244,9 @@ void MainWindow::loadImageAt(int index)
     originalMat_ = img.clone();
     imageDirty_    = false;
     safeOnlyDirty_ = true;
+    QString ext = QFileInfo(path).suffix().toLower();
+    isCurrentFileJpeg_   = (ext == "jpg" || ext == "jpeg");
+    pendingJpegRotSteps_ = 0;
     currentMat_  = img.clone();
     imageWidget_->setImage(currentMat_);
 
@@ -940,14 +944,21 @@ bool MainWindow::maybeSaveCurrentImage()
     msg.setCheckBox(tsCheck);
 
     msg.exec();
+    bool restoreTs = tsCheck->isChecked();
+    delete tsCheck;
 
     QAbstractButton* clicked = msg.clickedButton();
     if (clicked == cancelBtn) {
-        // przerwać akcję (PageUp/PageDown, wyjście, przejście do Browser itp.)
+        // interrupt action (PageUp/PageDown, exit, go to Browser, etc.)
         return false;
-    } else if (clicked == saveBtn) {
-        bool ok = saveCurrentImage(tsCheck->isChecked());
-        return ok; // jeśli zapis się nie uda, zostawiamy obraz i nie wychodzimy
+    } else     if (clicked == saveBtn) {
+        if (canDoLosslessJpegRotation()) {
+            // ONLY transformation on disk, without cv::imwrite
+            return applyPendingJpegRotationOnDisk(restoreTs);
+        } else {
+            // normal writing (e.g., cv::imwrite), potentially lossy operation
+            return saveCurrentImage(restoreTs);
+        }
     } else if (clicked == discardBtn) {
         revertCurrentImage();
         return true;
@@ -985,6 +996,7 @@ bool MainWindow::saveCurrentImage(bool restoreTimestamp)
 
     imageDirty_ = false;
     safeOnlyDirty_ = true;
+    pendingJpegRotSteps_ = 0;
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)
@@ -1014,6 +1026,7 @@ void MainWindow::revertCurrentImage()
     originalMat_ = img.clone();
     imageDirty_    = false;
     safeOnlyDirty_ = true;
+    pendingJpegRotSteps_ = 0;
     currentMat_  = img.clone();
     imageWidget_->setImage(currentMat_);
 
@@ -1128,6 +1141,33 @@ void MainWindow::deleteCurrentImageToTrash()
     loadImageAt(currentIndex_);
 }
 
+bool MainWindow::canDoLosslessJpegRotation() const
+{
+    if (!imageDirty_)
+        return false;
+
+    if (!isCurrentFileJpeg_)
+        return false;
+
+    if (!safeOnlyDirty_)   // była jakakolwiek niebezpieczna operacja
+        return false;
+
+    int steps = pendingJpegRotSteps_ % 4;
+    if (steps == 0)
+        return false;      // netto żadnej rotacji, nie ma co robić
+
+    if (originalMat_.empty())
+        return false;
+
+    int w = originalMat_.cols;
+    int h = originalMat_.rows;
+
+    if ((w % 8) != 0 || (h % 8) != 0)
+        return false;
+
+    return true;
+}
+
 void MainWindow::rotateCurrentImageLeft()
 {
     if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
@@ -1142,7 +1182,21 @@ void MainWindow::rotateCurrentImageLeft()
     currentMat_  = rotated.clone();
     imageWidget_->setImage(currentMat_);
 
-    imageDirty_    = true;
+    if (isCurrentFileJpeg_) {
+        // +90°
+        pendingJpegRotSteps_ = (pendingJpegRotSteps_ + 1) % 4;
+        // if rotations cancel each other out (steps 0), there are no real changes
+        if (safeOnlyDirty_ && pendingJpegRotSteps_ == 0)
+            imageDirty_ = false;
+        else {
+            imageDirty_ = true;
+            if (!canDoLosslessJpegRotation())
+                safeOnlyDirty_ = false;
+        }
+    } else {
+        // non-JPEG: only in memory – dirty always true
+        imageDirty_ = true;
+    }
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)
@@ -1166,7 +1220,21 @@ void MainWindow::rotateCurrentImageRight()
     currentMat_  = rotated.clone();
     imageWidget_->setImage(currentMat_);
 
-    imageDirty_    = true;
+    if (isCurrentFileJpeg_) {
+        // +90°
+        pendingJpegRotSteps_ = (pendingJpegRotSteps_ + 1) % 4;
+        // if rotations cancel each other out (steps 0), there are no real changes
+        if (safeOnlyDirty_ && pendingJpegRotSteps_ == 0)
+            imageDirty_ = false;
+        else {
+            imageDirty_ = true;
+            if (!canDoLosslessJpegRotation())
+                safeOnlyDirty_ = false;
+        }
+    } else {
+        // non-JPEG: only in memory – dirty always true
+        imageDirty_ = true;
+    }
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)
@@ -1174,4 +1242,65 @@ void MainWindow::rotateCurrentImageRight()
     else
         gray = originalMat_;
     computeHistogram(gray);
+}
+
+void MainWindow::restoreOriginalTimestamp(const QString& path)
+{
+    if (!originalFileTime_.isValid())
+        return;
+
+    QFile f(path);
+    if (!f.exists())
+        return;
+
+    // Na Linuksie FileBirthTime często jest niewspierany, ale nie szkodzi spróbować
+    f.setFileTime(originalFileTime_, QFileDevice::FileModificationTime);
+    f.setFileTime(originalFileTime_, QFileDevice::FileAccessTime);
+
+#if QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+    f.setFileTime(originalFileTime_, QFileDevice::FileBirthTime);
+#endif
+}
+
+bool MainWindow::applyPendingJpegRotationOnDisk(bool restoreTimestamp)
+{
+    int steps = pendingJpegRotSteps_ % 4;
+    if (steps == 0)
+        return true;
+
+    const QString path = imageFiles_[currentIndex_];
+
+    // wykonaj bezstratną rotację na pliku
+    if (!rotateJpegLossless(path, steps)) {
+        QMessageBox::warning(this,
+                             tr("Error"),
+                             tr("Failed to apply lossless JPEG rotation on disk."));
+        return false;
+    }
+
+    // ewentualne odtworzenie timestampu (masz już do tego kod)
+    if (restoreTimestamp) {
+        restoreOriginalTimestamp(path); // Twoja funkcja
+    }
+
+    pendingJpegRotSteps_ = 0;
+
+    // przeładuj obraz z dysku, żeby currentMat_/originalMat_ były zgodne
+    cv::Mat reloaded = loadAnyImage(path); // Twoje imread/imreadAvif
+    if (reloaded.empty()) {
+        QMessageBox::warning(this,
+                             tr("Error"),
+                             tr("Failed to reload rotated image."));
+        return false;
+    }
+
+    originalMat_ = reloaded.clone();
+    currentMat_  = reloaded.clone();
+    imageWidget_->setImage(currentMat_);
+
+    imageDirty_    = false;
+    safeOnlyDirty_ = true;
+
+    // histogram na nowo...
+    return true;
 }

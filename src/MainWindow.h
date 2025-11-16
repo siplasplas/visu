@@ -90,8 +90,15 @@ private:
 
     bool imageDirty_ = false;          // czy bieżący obraz zmodyfikowany
     bool safeOnlyDirty_ = true;
+    bool isCurrentFileJpeg_   = false;
+    int  pendingJpegRotSteps_ = 0;   // 0..3 kroki po 90°
     void rotateCurrentImageLeft();
     void rotateCurrentImageRight();
+
+    void restoreOriginalTimestamp(const QString & path);
+
+    bool applyPendingJpegRotationOnDisk(bool restoreTimestamp);
+
     QDateTime originalFileTime_;       // czas pliku przy wczytaniu
     bool hasOriginalFileTime_ = false; // czy mamy ważny timestamp
 
@@ -100,6 +107,9 @@ private:
     void revertCurrentImage();
 
     void deleteCurrentImageToTrash();
+
+    bool canDoLosslessJpegRotation() const;
+
     bool isInTrash(const QString& path) const;
 };
 
