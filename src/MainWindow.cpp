@@ -319,7 +319,15 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 
     bool handled = false;
 
-    if (stacked_->currentIndex() == 1) {
+    if (stacked_->currentWidget() == imageWidget_) {
+        if (event->key() == Qt::Key_Plus || event->key() == Qt::Key_Equal) {
+            imageWidget_->zoomIn();
+            return;
+        }
+        if (event->key() == Qt::Key_Minus) {
+            imageWidget_->zoomOut();
+            return;
+        }
         switch (event->key()) {
             case Qt::Key_Escape:
                 if (!currentImageDir_.isEmpty())

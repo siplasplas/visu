@@ -15,6 +15,10 @@ public:
     void setImage(const cv::Mat& mat);
     const cv::Mat& imageMat() const { return imageMat_; }
 
+    void resetZoom();
+    void zoomIn();
+    void zoomOut();
+
     void updatePixelInfoAt(const QPoint& widgetPos);
 
 signals:
@@ -23,11 +27,21 @@ signals:
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;    // TAK
+    void resizeEvent(QResizeEvent* event) override;  //
 
 private:
     cv::Mat imageMat_;
     QImage qimage_;
-    QRect targetRect_; // obszar, w którym rysujemy obraz
+    QRect targetRect_;
+
+    enum class ZoomMode { AutoFit, Fixed };
+    ZoomMode zoomMode_ = ZoomMode::AutoFit;
+    double   scaleFactor_ = 1.0;  //for mode Fixed
+
+    double computeFitScale(const QSize& widgetSize, const QSize& imageSize) const;
+
+    void   applyZoom(double factor);
 };
 
 #endif // IMAGEWIDGET_H

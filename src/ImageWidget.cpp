@@ -39,6 +39,18 @@ void ImageWidget::setImage(const cv::Mat& mat)
 {
     imageMat_ = mat.clone();
     qimage_ = matToQImage(imageMat_);
+
+    zoomMode_    = ZoomMode::AutoFit;
+    scaleFactor_ = 1.0;
+
+    update();
+}
+
+
+void ImageWidget::resetZoom()
+{
+    zoomMode_    = ZoomMode::AutoFit;
+    scaleFactor_ = 1.0;
     update();
 }
 
@@ -54,12 +66,18 @@ void ImageWidget::paintEvent(QPaintEvent*)
     QSize imgSizeOrig  = qimage_.size();
     QSize imgSize      = imgSizeOrig;
 
-    if (imgSize.width() > widgetSize.width() ||
-        imgSize.height() > widgetSize.height()) {
-        imgSize.scale(widgetSize, Qt::KeepAspectRatio);
-        } else {
-            imgSize = imgSizeOrig; // 1:1
-        }
+    double scale = 1.0;
+
+    if (zoomMode_ == ZoomMode::AutoFit) {
+        // Mode 1: auto-fit, only reduces, never enlarges
+        scale = computeFitScale(widgetSize, imgSizeOrig);
+    } else {
+        // Mode 2: fixed scale, image may be larger than the widget (cropped)
+        scale = scaleFactor_;
+    }
+
+    imgSize = QSize(static_cast<int>(imgSizeOrig.width()  * scale),
+                        static_cast<int>(imgSizeOrig.height() * scale));
 
     targetRect_ = QRect(QPoint(0, 0), imgSize);
     targetRect_.moveCenter(rect().center());
@@ -110,4 +128,86 @@ void ImageWidget::updatePixelInfoAt(const QPoint& pos)
     }
 
     emit pixelInfoChanged(imgX, imgY, r, g, b);
+}
+
+double ImageWidget::computeFitScale(const QSize& widgetSize,
+                                    const QSize& imageSize) const
+{
+    if (imageSize.isEmpty())
+        return 1.0;
+
+    // domyślnie brak skalowania (1:1)
+    double scale = 1.0;
+
+    // tylko jeśli obraz jest większy niż widget – zmniejszamy
+    if (imageSize.width()  > widgetSize.width() ||
+        imageSize.height() > widgetSize.height()) {
+
+        const double sx = static_cast<double>(widgetSize.width())  /
+                          static_cast<double>(imageSize.width());
+        const double sy = static_cast<double>(widgetSize.height()) /
+                          static_cast<double>(imageSize.height());
+
+        scale = std::min(sx, sy);
+        }
+
+    return scale;
+}
+
+void ImageWidget::resizeEvent(QResizeEvent* event)
+{
+    QWidget::resizeEvent(event);
+
+    // In Mode 1, changing the size of the widget changes the fit
+    if (zoomMode_ == ZoomMode::AutoFit) {
+        update();
+    }
+    // In Mode 2, nothing special – fixed scale, image may be cropped
+}
+
+void ImageWidget::applyZoom(double factor)
+{
+    if (qimage_.isNull())
+        return;
+
+    // first zoom – transition from AutoFit to Fixed
+    if (zoomMode_ == ZoomMode::AutoFit) {
+        double fitScale = computeFitScale(size(), qimage_.size());
+        if (fitScale <= 0.0)
+            fitScale = 1.0;
+        zoomMode_    = ZoomMode::Fixed;
+        scaleFactor_ = fitScale;
+    }
+
+    scaleFactor_ *= factor;
+
+    const double minScale = 0.05;
+    const double maxScale = 16.0;
+    if (scaleFactor_ < minScale) scaleFactor_ = minScale;
+    if (scaleFactor_ > maxScale) scaleFactor_ = maxScale;
+
+    update();
+}
+
+void ImageWidget::zoomIn()
+{
+    // np. +25% na klik
+    applyZoom(1.25);
+}
+
+void ImageWidget::zoomOut()
+{
+    applyZoom(1.0 / 1.25);
+}
+
+#include <QWheelEvent>
+
+void ImageWidget::wheelEvent(QWheelEvent* event)
+{
+    if (event->angleDelta().y() > 0) {
+        zoomIn();
+    } else if (event->angleDelta().y() < 0) {
+        zoomOut();
+    }
+    event->accept();
 }
