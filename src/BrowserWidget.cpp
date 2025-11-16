@@ -1,6 +1,6 @@
 #include "BrowserWidget.h"
+#include "DirOnlyModel.h"
 
-#include <QFileSystemModel>
 #include <QTreeView>
 #include <QScrollArea>
 #include <QGridLayout>
@@ -37,27 +37,17 @@ void BrowserWidget::initUi()
 {
     auto* mainLayout = new QHBoxLayout(this);
 
-    fsModel_ = new QFileSystemModel(this);
-    fsModel_->setFilter(QDir::NoDotAndDotDot | QDir::AllDirs);
+    fsModel_ = new DirOnlyModel(this);
     fsModel_->setRootPath(QDir::rootPath());
 
     tree_ = new QTreeView(this);
     tree_->setModel(fsModel_);
 
-    fsModel_ = new QFileSystemModel(this);
-    fsModel_->setFilter(QDir::NoDotAndDotDot | QDir::AllDirs);
-    fsModel_->setRootPath(QDir::rootPath());
-
-    tree_ = new QTreeView(this);
-    tree_->setModel(fsModel_);
-
-    // only 'Name' column
-    for (int col = 1; col < fsModel_->columnCount(); ++col) {
+    // tylko kolumna Name
+    for (int col = 1; col < fsModel_->columnCount(); ++col)
         tree_->hideColumn(col);
-    }
 
-        tree_->setHeaderHidden(true);
-
+    tree_->setHeaderHidden(true);
     tree_->setRootIndex(fsModel_->index(QDir::homePath()));
 
     connect(tree_, &QTreeView::clicked,

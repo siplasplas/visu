@@ -815,7 +815,7 @@ void MainWindow::onThumbnailActivated(const QString& filePath)
     const QString dir  = fi.absolutePath();
     const QString file = fi.absoluteFilePath();
 
-    scanDirectory(dir, file); // todo: not needed here
+    scanDirectory(dir, file);
 
     if (!imageFiles_.isEmpty()) {
         if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())

@@ -25,6 +25,7 @@ add_executable(visu
         src/BrowserWidget.h
         src/ThumbWidget.cpp
         src/ThumbWidget.h
+        src/DirOnlyModel.h
 )
 
 target_include_directories(visu PRIVATE
