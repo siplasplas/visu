@@ -11,7 +11,7 @@
 #include <QMouseEvent>
 #include <QtConcurrent/QtConcurrent>
 
-#include "ThumbLabel.h"
+#include "ThumbWidget.h"
 
 BrowserWidget::BrowserWidget(QWidget* parent)
     : QWidget(parent)
@@ -133,12 +133,9 @@ void BrowserWidget::addThumbnail(const QString& filePath, const QImage& image)
     int row = index / cols;
     int col = index % cols;
 
-    auto* label = new ThumbLabel(filePath, thumbsWidget_);
-    label->setPixmap(QPixmap::fromImage(image));
-    label->setScaledContents(false);
-
-    connect(label, &ThumbLabel::clicked,
+    auto* thumb = new ThumbWidget(filePath, image, thumbsWidget_);
+    connect(thumb, &ThumbWidget::activated,
             this, &BrowserWidget::thumbnailActivated);
 
-    gridLayout_->addWidget(label, row, col);
+    gridLayout_->addWidget(thumb, row, col);
 }

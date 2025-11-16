@@ -23,8 +23,8 @@ add_executable(visu
         src/ShadowCompressionDialog.cpp
         src/BrowserWidget.cpp
         src/BrowserWidget.h
-        src/ThumbLabel.h
-        src/ThumbLabel.cpp
+        src/ThumbWidget.cpp
+        src/ThumbWidget.h
 )
 
 target_include_directories(visu PRIVATE
