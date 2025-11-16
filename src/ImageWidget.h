@@ -26,6 +26,8 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;    // TAK
     void resizeEvent(QResizeEvent* event) override;  //
@@ -39,8 +41,12 @@ private:
     ZoomMode zoomMode_ = ZoomMode::AutoFit;
     double   scaleFactor_ = 1.0;  //for mode Fixed
 
-    double computeFitScale(const QSize& widgetSize, const QSize& imageSize) const;
+    // PAN
+    QPoint panOffset_{0, 0};   // offset in screen pixels
+    bool   panning_ = false;
+    QPoint lastMousePos_;
 
+    double computeFitScale(const QSize& widgetSize, const QSize& imageSize) const;
     void   applyZoom(double factor);
 };
 

@@ -1,7 +1,9 @@
 #include "ImageWidget.h"
 
 #include <QPainter>
+#include <QWheelEvent>
 #include <QMouseEvent>
+#include <QResizeEvent>
 
 namespace {
 
@@ -43,6 +45,9 @@ void ImageWidget::setImage(const cv::Mat& mat)
     zoomMode_    = ZoomMode::AutoFit;
     scaleFactor_ = 1.0;
 
+    panOffset_   = QPoint(0, 0);
+    panning_     = false;
+
     update();
 }
 
@@ -66,7 +71,6 @@ void ImageWidget::paintEvent(QPaintEvent* event)
 
     const QSize widgetSize  = size();
     const QSize imgSizeOrig = qimage_.size();
-
     double scale = 1.0;
 
     if (zoomMode_ == ZoomMode::AutoFit) {
@@ -77,29 +81,94 @@ void ImageWidget::paintEvent(QPaintEvent* event)
         scale = scaleFactor_;
     }
 
-    QSize imgSize(
-        int(imgSizeOrig.width()  * scale),
-        int(imgSizeOrig.height() * scale)
-    );
+    const int scaledW = int(imgSizeOrig.width()  * scale);
+    const int scaledH = int(imgSizeOrig.height() * scale);
+    QSize imgSize(scaledW, scaledH);
 
-    targetRect_ = QRect(QPoint(0, 0), imgSize);
-    targetRect_.moveCenter(rect().center());
+    // base-centered rectangle (without borders)
+    QRect baseRect(QPoint(0, 0), imgSize);
+    baseRect.moveCenter(rect().center());
 
-    // SELECTION OF “AREA vs NEAREST”:
-    // - scale < 1 → downscale → better quality (like AREA)
-    // - scale > 1 → upscale  → simplest filtering (like NEAREST)
-    if (scale <= 1.0) {
-        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    QRect r = baseRect;
+
+    // PAN only in Mode 2 and only when the image is larger than the widget
+    if (zoomMode_ == ZoomMode::Fixed &&
+        (scaledW > widgetSize.width() || scaledH > widgetSize.height())) {
+
+        // apply current offset
+        r.translate(panOffset_);
+
+        // apply current offset
+        // X
+        if (scaledW <= widgetSize.width()) {
+            // no horizontal control – centering
+            int cx = (widgetSize.width() - scaledW) / 2;
+            r.moveLeft(cx);
+            panOffset_.setX(0);
+        } else {
+            int minX = widgetSize.width() - scaledW; // farthest to the left
+            int maxX = 0;                            // farthest to the right
+
+            if (r.left() > maxX) {
+                int diff = r.left() - maxX;
+                r.moveLeft(maxX);
+                panOffset_.setX(panOffset_.x() - diff);
+            } else if (r.left() < minX) {
+                int diff = r.left() - minX;
+                r.moveLeft(minX);
+                panOffset_.setX(panOffset_.x() - diff);
+            }
+        }
+
+        // Y
+        if (scaledH <= widgetSize.height()) {
+            int cy = (widgetSize.height() - scaledH) / 2;
+            r.moveTop(cy);
+            panOffset_.setY(0);
+        } else {
+            int minY = widgetSize.height() - scaledH;
+            int maxY = 0;
+
+            if (r.top() > maxY) {
+                int diff = r.top() - maxY;
+                r.moveTop(maxY);
+                panOffset_.setY(panOffset_.y() - diff);
+            } else if (r.top() < minY) {
+                int diff = r.top() - minY;
+                r.moveTop(minY);
+                panOffset_.setY(panOffset_.y() - diff);
+            }
+        }
     } else {
-        p.setRenderHint(QPainter::SmoothPixmapTransform, false);
+        // no control – reset offset, just in case
+        panOffset_ = QPoint(0, 0);
+    }
+
+    targetRect_ = r;
+
+    // AREA mode vs NEAREST mode according to scale
+    if (scale <= 1.0) {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);  // downscale (AREA-like)
+    } else {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, false); // upscale (NEAREST-like)
     }
 
     p.drawImage(targetRect_, qimage_);
 }
 
+
 void ImageWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    if (panning_) {
+        QPoint delta = event->pos() - lastMousePos_;
+        lastMousePos_ = event->pos();
+        panOffset_ += delta;
+        update();
+        event->accept();
+        return;
+    }
     updatePixelInfoAt(event->pos());
+    QWidget::mouseMoveEvent(event);
 }
 
 void ImageWidget::updatePixelInfoAt(const QPoint& pos)
@@ -147,18 +216,15 @@ double ImageWidget::computeFitScale(const QSize& widgetSize,
     if (imageSize.isEmpty())
         return 1.0;
 
-    // domyślnie brak skalowania (1:1)
+    // no scaling by default (1:1)
     double scale = 1.0;
 
-    // tylko jeśli obraz jest większy niż widget – zmniejszamy
+    // only if the image is larger than the widget – we reduce it
     if (imageSize.width()  > widgetSize.width() ||
         imageSize.height() > widgetSize.height()) {
 
-        const double sx = static_cast<double>(widgetSize.width())  /
-                          static_cast<double>(imageSize.width());
-        const double sy = static_cast<double>(widgetSize.height()) /
-                          static_cast<double>(imageSize.height());
-
+        const double sx = double(widgetSize.width())  / imageSize.width();
+        const double sy = double(widgetSize.height()) / imageSize.height();
         scale = std::min(sx, sy);
         }
 
@@ -188,6 +254,7 @@ void ImageWidget::applyZoom(double factor)
             fitScale = 1.0;
         zoomMode_    = ZoomMode::Fixed;
         scaleFactor_ = fitScale;
+        panOffset_   = QPoint(0, 0);
     }
 
     scaleFactor_ *= factor;
@@ -215,10 +282,47 @@ void ImageWidget::zoomOut()
 
 void ImageWidget::wheelEvent(QWheelEvent* event)
 {
-    if (event->angleDelta().y() > 0) {
+    if (event->angleDelta().y() > 0)
         zoomIn();
-    } else if (event->angleDelta().y() < 0) {
+    else if (event->angleDelta().y() < 0)
         zoomOut();
-    }
+
     event->accept();
 }
+
+void ImageWidget::mousePressEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton &&
+        zoomMode_ == ZoomMode::Fixed &&
+        !qimage_.isNull()) {
+
+        const QSize widgetSize  = size();
+        const QSize imgSizeOrig = qimage_.size();
+        const int scaledW = int(imgSizeOrig.width()  * scaleFactor_);
+        const int scaledH = int(imgSizeOrig.height() * scaleFactor_);
+
+        // panowanie tylko jeśli obraz większy niż widget
+        if (scaledW > widgetSize.width() || scaledH > widgetSize.height()) {
+            panning_ = true;
+            lastMousePos_ = event->pos();
+            setCursor(Qt::ClosedHandCursor);
+            event->accept();
+            return;
+        }
+        }
+
+    QWidget::mousePressEvent(event);
+}
+
+void ImageWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton && panning_) {
+        panning_ = false;
+        unsetCursor();
+        event->accept();
+        return;
+    }
+
+    QWidget::mouseReleaseEvent(event);
+}
+
