@@ -226,7 +226,7 @@ double ImageWidget::computeFitScale(const QSize& widgetSize,
         const double sx = double(widgetSize.width())  / imageSize.width();
         const double sy = double(widgetSize.height()) / imageSize.height();
         scale = std::min(sx, sy);
-        }
+    }
 
     return scale;
 }
@@ -267,25 +267,99 @@ void ImageWidget::applyZoom(double factor)
     update();
 }
 
+void ImageWidget::applyZoomAt(const QPoint& anchorWidget, double factor)
+{
+    if (qimage_.isNull())
+        return;
+
+    const QSize widgetSize  = size();
+    const QSize imgSizeOrig = qimage_.size();
+
+    // przejście AutoFit -> Fixed przy pierwszym zoomie
+    if (zoomMode_ == ZoomMode::AutoFit) {
+        double fitScale = computeFitScale(widgetSize, imgSizeOrig);
+        if (fitScale <= 0.0)
+            fitScale = 1.0;
+        zoomMode_    = ZoomMode::Fixed;
+        scaleFactor_ = fitScale;
+        panOffset_   = QPoint(0, 0);
+    }
+
+    double oldScale = scaleFactor_;
+    double newScale = scaleFactor_ * factor;
+
+    const double minScale = 0.05;
+    const double maxScale = 16.0;
+    if (newScale < minScale) newScale = minScale;
+    if (newScale > maxScale) newScale = maxScale;
+
+    // jeśli realnie się nie zmienia, nic nie rób
+    if (std::abs(newScale - oldScale) < 1e-6)
+        return;
+
+    // prostokąt przed zoomem
+    int oldW = int(imgSizeOrig.width()  * oldScale);
+    int oldH = int(imgSizeOrig.height() * oldScale);
+    QRect baseOld(QPoint(0, 0), QSize(oldW, oldH));
+    baseOld.moveCenter(rect().center());
+    QRect rOld = baseOld.translated(panOffset_);
+
+    // współrzędne punktu obrazu pod kursorem przed zoomem
+    QPointF anchor = anchorWidget;
+    QPointF imgCoord(
+        (anchor.x() - rOld.left()) / oldScale,
+        (anchor.y() - rOld.top())  / oldScale
+    );
+
+    // prostokąt bazowy po zoomie (bez panOffset)
+    int newW = int(imgSizeOrig.width()  * newScale);
+    int newH = int(imgSizeOrig.height() * newScale);
+    QRect baseNew(QPoint(0, 0), QSize(newW, newH));
+    baseNew.moveCenter(rect().center());
+
+    // chcemy: anchorWidget = topLeftNew + imgCoord * newScale
+    QPointF topLeftNewF(
+        anchor.x() - imgCoord.x() * newScale,
+        anchor.y() - imgCoord.y() * newScale
+    );
+    QPoint topLeftNew = topLeftNewF.toPoint();
+
+    // z tego wyliczamy nowy panOffset_
+    panOffset_ = topLeftNew - baseNew.topLeft();
+
+    scaleFactor_ = newScale;
+    update();
+}
+
+
 void ImageWidget::zoomIn()
 {
-    // np. +25% na klik
-    applyZoom(1.25);
+    QPoint center = rect().center();
+    applyZoomAt(center, 1.25);        // +25%
 }
 
 void ImageWidget::zoomOut()
 {
-    applyZoom(1.0 / 1.25);
+    QPoint center = rect().center();
+    applyZoomAt(center, 1.0 / 1.25); // -20%
 }
 
 #include <QWheelEvent>
 
 void ImageWidget::wheelEvent(QWheelEvent* event)
 {
-    if (event->angleDelta().y() > 0)
-        zoomIn();
-    else if (event->angleDelta().y() < 0)
-        zoomOut();
+    if (qimage_.isNull()) {
+        QWidget::wheelEvent(event);
+        return;
+    }
+
+    QPoint anchor = event->position().toPoint();
+
+    if (event->angleDelta().y() > 0) {
+        applyZoomAt(anchor, 1.25);
+    } else if (event->angleDelta().y() < 0) {
+        applyZoomAt(anchor, 1.0 / 1.25);
+    }
 
     event->accept();
 }
@@ -326,3 +400,24 @@ void ImageWidget::mouseReleaseEvent(QMouseEvent* event)
     QWidget::mouseReleaseEvent(event);
 }
 
+void ImageWidget::zoomResetTo100()
+{
+    if (qimage_.isNull())
+        return;
+
+    zoomMode_    = ZoomMode::Fixed;
+    scaleFactor_ = 1.0;
+    panOffset_   = QPoint(0, 0);
+    update();
+}
+
+void ImageWidget::zoomFit()
+{
+    if (qimage_.isNull())
+        return;
+
+    zoomMode_    = ZoomMode::AutoFit;
+    scaleFactor_ = 1.0;
+    panOffset_   = QPoint(0, 0);
+    update();
+}

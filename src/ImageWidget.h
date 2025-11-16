@@ -18,6 +18,8 @@ public:
     void resetZoom();
     void zoomIn();
     void zoomOut();
+    void zoomResetTo100();  // key '0'
+    void zoomFit();         // key 'f'
 
     void updatePixelInfoAt(const QPoint& widgetPos);
 
@@ -48,6 +50,7 @@ private:
 
     double computeFitScale(const QSize& widgetSize, const QSize& imageSize) const;
     void   applyZoom(double factor);
+    void applyZoomAt(const QPoint& anchorWidget, double factor);
 };
 
 #endif // IMAGEWIDGET_H

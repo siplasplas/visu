@@ -320,14 +320,26 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
     bool handled = false;
 
     if (stacked_->currentWidget() == imageWidget_) {
-        if (event->key() == Qt::Key_Plus || event->key() == Qt::Key_Equal) {
-            imageWidget_->zoomIn();
-            return;
+        if (stacked_->currentWidget() == imageWidget_) {
+            switch (event->key()) {
+                case Qt::Key_Plus:
+                case Qt::Key_Equal:   // często '+' to Shift+'='
+                    imageWidget_->zoomIn();
+                    return;
+                case Qt::Key_Minus:
+                    imageWidget_->zoomOut();
+                    return;
+                case Qt::Key_0:
+                    imageWidget_->zoomResetTo100();
+                    return;
+                case Qt::Key_F:
+                    imageWidget_->zoomFit();
+                    return;
+                default:
+                    break;
+            }
         }
-        if (event->key() == Qt::Key_Minus) {
-            imageWidget_->zoomOut();
-            return;
-        }
+
         switch (event->key()) {
             case Qt::Key_Escape:
                 if (!currentImageDir_.isEmpty())
