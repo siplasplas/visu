@@ -50,13 +50,21 @@ void ImageWidget::paintEvent(QPaintEvent*)
     if (qimage_.isNull())
         return;
 
-    QSize widgetSize = size();
-    QSize imgSize = qimage_.size();
-    imgSize.scale(widgetSize, Qt::KeepAspectRatio);
+    QSize widgetSize   = size();
+    QSize imgSizeOrig  = qimage_.size();
+    QSize imgSize      = imgSizeOrig;
+
+    if (imgSize.width() > widgetSize.width() ||
+        imgSize.height() > widgetSize.height()) {
+        imgSize.scale(widgetSize, Qt::KeepAspectRatio);
+        } else {
+            imgSize = imgSizeOrig; // 1:1
+        }
 
     targetRect_ = QRect(QPoint(0, 0), imgSize);
     targetRect_.moveCenter(rect().center());
 
+    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
     p.drawImage(targetRect_, qimage_);
 }
 

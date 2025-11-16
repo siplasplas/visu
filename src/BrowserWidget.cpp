@@ -90,8 +90,18 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
             if (img.isNull())
                 continue;
 
-            QImage thumb = img.scaled(160, 160, Qt::KeepAspectRatio,
-                                      Qt::SmoothTransformation);
+            const int maxThumbW = 160;
+            const int maxThumbH = 160;
+
+            QImage thumb = img;
+
+            // tylko downscale – nigdy nie powiększamy miniatur
+            if (img.width() > maxThumbW || img.height() > maxThumbH) {
+                thumb = img.scaled(maxThumbW, maxThumbH,
+                                   Qt::KeepAspectRatio,
+                                   Qt::SmoothTransformation);
+            }
+
 
             QMetaObject::invokeMethod(
                 this,
