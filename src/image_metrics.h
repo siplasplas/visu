@@ -1,25 +1,47 @@
 //
 // Image Metrics Module
 //
-// This module provides two objective image quality metrics commonly used
-// in image compression research and evaluation:
+// This module provides implementations of the two most common classical
+// image quality metrics used in compression evaluation:
 //
 // - PSNR (Peak Signal-to-Noise Ratio):
-//     A simple, classical pixel-wise metric based on the mean squared error.
-//     Easy to compute, widely used for baseline comparisons.
-//     High PSNR generally indicates low distortion, but the metric does not
-//     correlate well with human visual perception.
+//     A simple error-based metric derived from MSE.
+//     Fast to compute and widely used as a baseline.
+//     Its correlation with human perception is limited.
 //
 // - SSIM (Structural Similarity Index):
-//     A significantly more perceptually meaningful metric that compares
-//     luminance, contrast and structural information between images.
-//     SSIM typically correlates better with human perception than PSNR and is
-//     considered a stronger indicator of visual quality.
+//     A perceptually-aware metric comparing structure, contrast,
+//     and luminance. Much more aligned with human visual perception.
 //
-// Both metrics require the reference image and test image to have identical
-// dimensions and pixel formats. They operate on cv::Mat and do not depend
-// on Qt, making the module suitable for GUI applications and standalone
-// console tools.
+//
+// Advanced metrics (not yet implemented here) that are typically slower
+// but significantly more accurate for modern codecs such as AVIF, WebP,
+// JPEG XL, and HEIC:
+//
+// - MS-SSIM (Multi-Scale SSIM):
+//     An improved multi-resolution variant of SSIM.
+//     Much stronger predictor of perceived visual quality than PSNR/SSIM.
+//     Commonly used in academic papers and in AVIF/JXL evaluations.
+//
+// - VIF (Visual Information Fidelity):
+//     A statistically grounded metric based on information theory.
+//     Provides excellent correlation with subjective tests,
+//     but is computationally heavier.
+//
+// - FSIM (Feature Similarity Index):
+//     Relies on phase congruency and gradient magnitude.
+//     Highly sensitive to edges and structural detail—ideal for
+//     comparing sharpening/compression pipelines.
+//
+// - LPIPS (Learned Perceptual Image Patch Similarity):
+//     A modern deep-learning-based metric using VGG/AlexNet features.
+//     Very strong agreement with human perception.
+//     Computationally expensive; GPU acceleration recommended.
+//
+// All metrics require reference and test images of the same size and type.
+//
+// This module is Qt-independent and can be used in GUI applications
+// or standalone console tools.
 //
 
 #ifndef IMAGE_METRICS_H
