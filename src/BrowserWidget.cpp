@@ -43,7 +43,21 @@ void BrowserWidget::initUi()
 
     tree_ = new QTreeView(this);
     tree_->setModel(fsModel_);
-    tree_->setHeaderHidden(true);
+
+    fsModel_ = new QFileSystemModel(this);
+    fsModel_->setFilter(QDir::NoDotAndDotDot | QDir::AllDirs);
+    fsModel_->setRootPath(QDir::rootPath());
+
+    tree_ = new QTreeView(this);
+    tree_->setModel(fsModel_);
+
+    // only 'Name' column
+    for (int col = 1; col < fsModel_->columnCount(); ++col) {
+        tree_->hideColumn(col);
+    }
+
+        tree_->setHeaderHidden(true);
+
     tree_->setRootIndex(fsModel_->index(QDir::homePath()));
 
     connect(tree_, &QTreeView::clicked,
@@ -80,38 +94,33 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
     auto future = QtConcurrent::run([this, dirPath]() {
         QDir dir(dirPath);
         QStringList nameFilters;
-        nameFilters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp" << "*.gif" << "*.webp" << "*.tif" << "*.tiff";
+        nameFilters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp"
+                    << "*.gif" << "*.webp" << "*.tif" << "*.tiff";
 
-        QDirIterator it(dirPath, nameFilters, QDir::Files);
-        int row = 0, col = 0;
+        QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);
 
-        while (it.hasNext()) {
+        // 2. alphabetical sorting (QDir::Name already does this,
+        //    but we do it explicitly so that it is always deterministic)
+        files.sort(Qt::CaseInsensitive);
+
+        for (const QString& fn : files) {
             if (cancelFlag_.load())
                 break;
 
-            const QString filePath = it.next();
-
+            const QString filePath = dir.absoluteFilePath(fn);
             QImage img(filePath);
             if (img.isNull())
                 continue;
 
             QImage thumb = img.scaled(160, 160, Qt::KeepAspectRatio, Qt::SmoothTransformation);
 
-            // przekazujemy do GUI
             QMetaObject::invokeMethod(
                 this,
-                [this, filePath, thumb, row, col]() {
+                [this, filePath, thumb]() {
                     addThumbnail(filePath, thumb);
                 },
                 Qt::QueuedConnection
             );
-
-            // prosty układ gridowy 4 kolumny
-            ++col;
-            if (col >= 4) {
-                col = 0;
-                ++row;
-            }
         }
     });
 
