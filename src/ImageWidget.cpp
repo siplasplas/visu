@@ -54,17 +54,18 @@ void ImageWidget::resetZoom()
     update();
 }
 
-void ImageWidget::paintEvent(QPaintEvent*)
+void ImageWidget::paintEvent(QPaintEvent* event)
 {
+    Q_UNUSED(event);
+
     QPainter p(this);
     p.fillRect(rect(), Qt::black);
 
     if (qimage_.isNull())
         return;
 
-    QSize widgetSize   = size();
-    QSize imgSizeOrig  = qimage_.size();
-    QSize imgSize      = imgSizeOrig;
+    const QSize widgetSize  = size();
+    const QSize imgSizeOrig = qimage_.size();
 
     double scale = 1.0;
 
@@ -76,13 +77,23 @@ void ImageWidget::paintEvent(QPaintEvent*)
         scale = scaleFactor_;
     }
 
-    imgSize = QSize(static_cast<int>(imgSizeOrig.width()  * scale),
-                        static_cast<int>(imgSizeOrig.height() * scale));
+    QSize imgSize(
+        int(imgSizeOrig.width()  * scale),
+        int(imgSizeOrig.height() * scale)
+    );
 
     targetRect_ = QRect(QPoint(0, 0), imgSize);
     targetRect_.moveCenter(rect().center());
 
-    p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    // SELECTION OF “AREA vs NEAREST”:
+    // - scale < 1 → downscale → better quality (like AREA)
+    // - scale > 1 → upscale  → simplest filtering (like NEAREST)
+    if (scale <= 1.0) {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, true);
+    } else {
+        p.setRenderHint(QPainter::SmoothPixmapTransform, false);
+    }
+
     p.drawImage(targetRect_, qimage_);
 }
 
@@ -181,8 +192,8 @@ void ImageWidget::applyZoom(double factor)
 
     scaleFactor_ *= factor;
 
-    const double minScale = 0.05;
-    const double maxScale = 16.0;
+    const double minScale = 0.01;
+    const double maxScale = 80.0;
     if (scaleFactor_ < minScale) scaleFactor_ = minScale;
     if (scaleFactor_ > maxScale) scaleFactor_ = maxScale;
 
