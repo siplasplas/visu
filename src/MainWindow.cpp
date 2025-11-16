@@ -709,7 +709,7 @@ void MainWindow::openFile()
     dlg.setFileMode(QFileDialog::ExistingFile);
     dlg.setOption(QFileDialog::DontUseNativeDialog, true);
     dlg.setNameFilter(
-        tr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp);;All files (*.*)")
+        tr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.avif);;All files (*.*)")
     );
 
     if (!baseDirectory_.isEmpty())
