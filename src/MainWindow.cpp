@@ -310,37 +310,41 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
 
     bool handled = false;
 
-    switch (event->key()) {
-        case Qt::Key_Escape:
-            if (!currentImageDir_.isEmpty())
-                browserWidget_->ensureDirectoryLoaded(currentImageDir_);
-            switchToBrowserMode();
-            break;
-        case Qt::Key_Left:
-        case Qt::Key_PageUp:
-            goToIndex(currentIndex_ - 1);
-            handled = true;
-            break;
+    if (stacked_->currentIndex() == 1) {
+        switch (event->key()) {
+            case Qt::Key_Escape:
+                if (!currentImageDir_.isEmpty())
+                    browserWidget_->ensureDirectoryLoaded(currentImageDir_);
+                switchToBrowserMode();
+                handled = true;
+                break;
+            case Qt::Key_Left:
+            case Qt::Key_PageUp:
+                goToIndex(currentIndex_ - 1);
+                handled = true;
+                break;
 
-        case Qt::Key_Right:
-        case Qt::Key_PageDown:
-            goToIndex(currentIndex_ + 1);
-            handled = true;
-            break;
+            case Qt::Key_Right:
+            case Qt::Key_PageDown:
+                goToIndex(currentIndex_ + 1);
+                handled = true;
+                break;
 
-        case Qt::Key_Home:
-            goToIndex(0);
-            handled = true;
-            break;
+            case Qt::Key_Home:
+                goToIndex(0);
+                handled = true;
+                break;
 
-        case Qt::Key_End:
-            goToIndex(imageFiles_.size() - 1);
-            handled = true;
-            break;
+            case Qt::Key_End:
+                goToIndex(imageFiles_.size() - 1);
+                handled = true;
+                break;
 
-        default:
-            break;
-    }
+            default:
+                break;
+        }
+    } else
+        handled = true;
 
     if (!handled) {
         QMainWindow::keyPressEvent(event);
