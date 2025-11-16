@@ -36,6 +36,9 @@ add_executable(visu
         src/avif_opencv.h
         src/jpeg_lossless.cpp
         src/jpeg_lossless.h
+        src/ImageFormats.h
+        src/SaveAsDialog.cpp
+        src/SaveAsDialog.h
 )
 
 find_package(PkgConfig REQUIRED)

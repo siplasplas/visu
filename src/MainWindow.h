@@ -11,6 +11,8 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "SaveAsDialog.h"
+
 class QLabel;
 class ImageWidget;
 class DoubleThresholdDialog;
@@ -29,6 +31,8 @@ private slots:
     void switchToBrowserMode();
     void switchToSingleMode();
     void onThumbnailActivated(const QString& filePath);
+    void onShowOriginalClicked();
+
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -99,6 +103,12 @@ private:
 
     bool applyPendingJpegRotationOnDisk(bool restoreTimestamp);
 
+    void openSaveAsDialog();
+
+    void onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool showOriginal);
+
+    void onSaveAsAccepted(ImageFormat fmt, int quality, bool showOriginal);
+
     QDateTime originalFileTime_;       // czas pliku przy wczytaniu
     bool hasOriginalFileTime_ = false; // czy mamy ważny timestamp
 
@@ -107,10 +117,13 @@ private:
     void revertCurrentImage();
 
     void deleteCurrentImageToTrash();
-
     bool canDoLosslessJpegRotation() const;
-
     bool isInTrash(const QString& path) const;
+    SaveAsDialog* saveAsDlg_ = nullptr;
+    cv::Mat previewMat_;           // ostatni skompresowany preview
+    QString previewTempPath_;
+    bool saveLossless(const QString& path, ImageFormat fmt, const cv::Mat& mat);
+    bool saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& mat, int quality);
 };
 
 #endif // MAINWINDOW_H

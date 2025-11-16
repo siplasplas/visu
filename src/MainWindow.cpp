@@ -127,6 +127,12 @@ void MainWindow::initUi()
             this, &MainWindow::openDirectory);
     fileMenu->addAction(openDirAct);
 
+    auto saveAsAct = new QAction(tr("Save &As..."), this);
+    saveAsAct->setShortcut(QKeySequence::SaveAs);   // zwykle Ctrl+Shift+S
+    connect(saveAsAct, &QAction::triggered,
+            this, &MainWindow::openSaveAsDialog);
+    fileMenu->addAction(saveAsAct);
+
     // Move...
     moveAct_ = new QAction(tr("Move..."), this);
     moveAct_->setShortcut(Qt::Key_M);
@@ -1303,4 +1309,256 @@ bool MainWindow::applyPendingJpegRotationOnDisk(bool restoreTimestamp)
 
     // histogram na nowo...
     return true;
+}
+
+void MainWindow::openSaveAsDialog()
+{
+    if (!imageWidget_ || originalMat_.empty())
+        return;
+
+    if (!saveAsDlg_) {
+        saveAsDlg_ = new SaveAsDialog(this);
+        connect(saveAsDlg_, &SaveAsDialog::previewRequested,
+                this, &MainWindow::onSaveAsPreviewRequested);
+        connect(saveAsDlg_, &SaveAsDialog::acceptedSave,
+                this, &MainWindow::onSaveAsAccepted);
+        if (saveAsDlg_->showOriginalCheck_) {
+            connect(saveAsDlg_->showOriginalCheck_, &QCheckBox::toggled,
+                    this, &MainWindow::onShowOriginalClicked);
+        }
+
+    }
+
+    saveAsDlg_->show();
+    saveAsDlg_->raise();
+    saveAsDlg_->activateWindow();
+
+    // Pierwszy preview (startowo np. JPEG 90 lub PNG bezstratnie)
+    saveAsDlg_->onFormatChanged(saveAsDlg_->formatToComboIndex(ImageFormat::Jpeg));
+}
+
+void MainWindow::onShowOriginalClicked() {
+    if (saveAsDlg_->showOriginalCheck_->isChecked()) {
+        imageWidget_->setImage(originalMat_);
+        saveAsDlg_->clearFileSizeInfo();
+    } else {
+        saveAsDlg_->onShowOriginalToggled(false);
+    }
+}
+
+void MainWindow::onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool showOriginal)
+{
+    if (saveAsDlg_) {
+        saveAsDlg_->clearFileSizeInfo();   // hide status during compression
+        if (showOriginal)
+            return;
+    }
+    // Lossless: we do not do compression previews
+    if (!isAlwaysLossyFormat(fmt) &&
+        fmt != ImageFormat::Webp &&
+        fmt != ImageFormat::Avif) {
+        // always show original
+        imageWidget_->setImage(originalMat_);
+        previewMat_.release();
+        if (saveAsDlg_) {
+            saveAsDlg_->setFileSizeInfo(0, 0.0);
+        }
+        return;
+    }
+
+    // lossy: compression to /dev/shm
+    QString ext;
+    switch (fmt) {
+    case ImageFormat::Jpeg: ext = "jpg"; break;
+    case ImageFormat::Webp: ext = "webp"; break;
+    case ImageFormat::Avif: ext = "avif"; break;
+    default: ext = "jpg"; break;
+    }
+
+    QString tmpPath = QString("/dev/shm/visu_preview_%1.%2")
+                          .arg(QCoreApplication::applicationPid())
+                          .arg(ext);
+    previewTempPath_ = tmpPath;
+
+    // save to tmp (JPEG/WebP via OpenCV, AVIF via imwriteAvif)
+    bool ok = false;
+    if (fmt == ImageFormat::Jpeg) {
+        std::vector<int> params = { cv::IMWRITE_JPEG_QUALITY, quality };
+        ok = cv::imwrite(tmpPath.toStdString(), originalMat_, params);
+    } else if (fmt == ImageFormat::Webp) {
+        std::vector<int> params = { cv::IMWRITE_WEBP_QUALITY, quality };
+        ok = cv::imwrite(tmpPath.toStdString(), originalMat_, params);
+    } else if (fmt == ImageFormat::Avif) {
+        ok = imwriteAvif(tmpPath.toStdString(), originalMat_, quality);
+    }
+
+    if (!ok) {
+        // fallback: show originał
+        imageWidget_->setImage(originalMat_);
+        previewMat_.release();
+        if (saveAsDlg_) {
+            saveAsDlg_->setFileSizeInfo(0, 0.0);
+        }
+        return;
+    }
+
+    QFileInfo fi(tmpPath);
+    qint64 bytes = fi.size();
+
+    // w*h* channels (assume BGR 8-bit)
+    int w = originalMat_.cols;
+    int h = originalMat_.rows;
+    int c = originalMat_.channels();
+    double rawSize = double(w) * double(h) * double(c);
+    double ratio = (rawSize > 0.0) ? (rawSize / double(bytes)) : 0.0;
+
+    if (saveAsDlg_) {
+        saveAsDlg_->setFileSizeInfo(bytes, ratio);
+    }
+
+    // load preview and switch view
+    previewMat_ = loadAnyImage(tmpPath);
+
+    if (saveAsDlg_) {
+        saveAsDlg_->setFileSizeInfo(bytes, ratio);  // after loading the preview – show
+    }
+
+    imageWidget_->setImage(previewMat_);
+    imageWidget_->repaint();
+}
+
+void MainWindow::onSaveAsAccepted(ImageFormat fmt, int quality, bool showOriginal)
+{
+    Q_UNUSED(showOriginal);
+
+    // 1. ask for the destination path (QFileDialog::getSaveFileName)
+    QString extDefault;
+    switch (fmt) {
+        case ImageFormat::Png:  extDefault = "png"; break;
+        case ImageFormat::Jpeg: extDefault = "jpg"; break;
+        case ImageFormat::Gif:  extDefault = "gif"; break;
+        case ImageFormat::Webp: extDefault = "webp"; break;
+        case ImageFormat::Avif: extDefault = "avif"; break;
+        case ImageFormat::Bmp:  extDefault = "bmp"; break;
+        case ImageFormat::Tiff: extDefault = "tif"; break;
+        default: extDefault = "png"; break;
+    }
+
+    QString filter = fileDialogFilterAllImages();
+    QString targetPath = QFileDialog::getSaveFileName(this,
+                            tr("Save image as"),
+                            QString(),
+                            filter);
+    if (targetPath.isEmpty())
+        return;
+
+    // add extension if missing
+    if (QFileInfo(targetPath).suffix().isEmpty())
+        targetPath += "." + extDefault;
+
+    bool ok = false;
+    if (!isAlwaysLossyFormat(fmt) &&
+        fmt != ImageFormat::Webp &&
+        fmt != ImageFormat::Avif) {
+        // lossless saving: PNG/BMP/TIFF (without compression preview)
+        ok = saveLossless(targetPath, fmt, originalMat_);
+        } else {
+            // lossy recording: use the same parameters as in preview (quality)
+                ok = saveLossy(targetPath, fmt, originalMat_, quality);
+        }
+
+    if (!ok) {
+        QMessageBox::warning(this, tr("Save error"),
+                             tr("Could not save image to %1").arg(targetPath));
+        return;
+    }
+}
+
+bool MainWindow::saveLossless(const QString& path, ImageFormat fmt, const cv::Mat& mat)
+{
+    if (mat.empty()) {
+        return false;
+    }
+
+    std::string fname = path.toStdString();
+    std::vector<int> params;
+    bool ok = false;
+
+    switch (fmt) {
+    case ImageFormat::Png:
+        // PNG is lossless – compression level only affects time/size
+        // 0 = no compression, 9 = max. compression
+        params = { cv::IMWRITE_PNG_COMPRESSION, 3 }; // e.g., 3 as a reasonable compromise
+        ok = cv::imwrite(fname, mat, params);
+        break;
+
+    case ImageFormat::Bmp:
+        // Uncompressed BMP (always lossless)
+        ok = cv::imwrite(fname, mat);
+        break;
+
+    case ImageFormat::Tiff:
+        // TIFF with LZW (lossless). A value of 5 means LZW in OpenCV.
+        params = { cv::IMWRITE_TIFF_COMPRESSION, 5 };
+        ok = cv::imwrite(fname, mat, params);
+        break;
+
+    case ImageFormat::Gif:
+        // TODO: real GIF indexing (palette) by your module.
+        // For now: no support, we signal this as false.
+        ok = false;
+        break;
+
+    default:
+        // We do not perform lossless saves for other formats.
+        ok = false;
+        break;
+    }
+
+    return ok;
+}
+
+bool MainWindow::saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& mat, int quality)
+{
+    if (mat.empty()) {
+        return false;
+    }
+
+    if (quality < 0)   quality = 0;
+    if (quality > 100) quality = 100;
+
+    std::string fname = path.toStdString();
+    std::vector<int> params;
+    bool ok = false;
+
+    switch (fmt) {
+    case ImageFormat::Jpeg:
+        // JPEG – klasyczna kompresja stratna
+        params = { cv::IMWRITE_JPEG_QUALITY, quality };
+        ok = cv::imwrite(fname, mat, params);
+        break;
+
+    case ImageFormat::Webp:
+        // WebP: OpenCV obsługuje IMWRITE_WEBP_QUALITY (0–100)
+        params = { cv::IMWRITE_WEBP_QUALITY, quality };
+        ok = cv::imwrite(fname, mat, params);
+        break;
+
+    case ImageFormat::Avif:
+        // AVIF: własna funkcja na bazie libavif
+        ok = imwriteAvif(fname, mat, quality);
+        break;
+
+    // If you want to add “lossy PNG8/GIF with quantization” in the future, you can add it here:
+    // case ImageFormat::Png:
+    // case ImageFormat::Gif:
+    //     ok = saveIndexedWithQuantization(...);
+    //     break;
+    default:
+        // format not supported in lossy mode
+        ok = false;
+        break;
+    }
+
+    return ok;
 }

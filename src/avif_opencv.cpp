@@ -115,3 +115,146 @@ cv::Mat imreadAvif(const std::string& filename, int flags)
 
     return result;
 }
+
+// auxiliary: mapping quality 0–100 → quantizer 0–63 (lower = better quality)
+static int qualityToQuantizer(int quality)
+{
+    if (quality < 0)   quality = 0;
+    if (quality > 100) quality = 100;
+    // quality: 0   → q ~= 63  (worst quality)
+    // quality: 100 → q = 0    (best quality)
+    int q = 63 - (quality * 63 + 50) / 100;
+    if (q < 0)  q = 0;
+    if (q > 63) q = 63;
+    return q;
+}
+
+bool imwriteAvif(const std::string& filename,
+                 const cv::Mat& image,
+                 int quality)
+{
+    if (image.empty()) {
+        std::cerr << "imwriteAvif: empty image\n";
+        return false;
+    }
+
+    // We must have 8-bit RGB(A). If CV_8UC3, we treat it as BGR.
+    cv::Mat src8;
+    if (image.depth() != CV_8U) {
+        image.convertTo(src8, CV_8U, 255.0);
+    } else {
+        src8 = image;
+    }
+
+    cv::Mat rgb;
+    if (src8.channels() == 3) {
+        cv::cvtColor(src8, rgb, cv::COLOR_BGR2RGB);
+    } else if (src8.channels() == 4) {
+        cv::cvtColor(src8, rgb, cv::COLOR_BGRA2RGB);
+    } else if (src8.channels() == 1) {
+        // obraz 1-kanałowy – powielamy do RGB
+        cv::cvtColor(src8, rgb, cv::COLOR_GRAY2RGB);
+    } else {
+        std::cerr << "imwriteAvif: unsupported channel count: "
+                  << src8.channels() << "\n";
+        return false;
+    }
+
+    int width  = rgb.cols;
+    int height = rgb.rows;
+
+    avifImage* imageAvif = avifImageCreate(width, height, 8, AVIF_PIXEL_FORMAT_YUV444);
+    if (!imageAvif) {
+        std::cerr << "imwriteAvif: avifImageCreate failed\n";
+        return false;
+    }
+
+    // Przygotuj RGB wrapper
+    avifRGBImage rgbAvif;
+    avifRGBImageSetDefaults(&rgbAvif, imageAvif);
+    rgbAvif.depth  = 8;
+    rgbAvif.format = AVIF_RGB_FORMAT_RGB;
+    rgbAvif.chromaUpsampling = AVIF_CHROMA_UPSAMPLING_AUTOMATIC;
+
+    avifRGBImageAllocatePixels(&rgbAvif);
+
+    // Copy data from cv::Mat to rgbAvif.pixels
+    // Assumption: rgb is contiguous (if not, make a copy)
+    cv::Mat rgbCont;
+    if (rgb.isContinuous()) {
+        rgbCont = rgb;
+    } else {
+        rgbCont = rgb.clone();
+    }
+
+    const int srcStride = static_cast<int>(rgbCont.step[0]);
+    const uint8_t* srcData = rgbCont.ptr<uint8_t>(0);
+
+    for (int y = 0; y < height; ++y) {
+        const uint8_t* srcRow = srcData + y * srcStride;
+        uint8_t* dstRow = rgbAvif.pixels + y * rgbAvif.rowBytes;
+        std::memcpy(dstRow, srcRow, width * 3);
+    }
+
+    avifResult r = avifImageRGBToYUV(imageAvif, &rgbAvif);
+    if (r != AVIF_RESULT_OK) {
+        std::cerr << "imwriteAvif: avifImageRGBToYUV failed: "
+                  << avifResultToString(r) << "\n";
+        avifRGBImageFreePixels(&rgbAvif);
+        avifImageDestroy(imageAvif);
+        return false;
+    }
+
+    avifEncoder* encoder = avifEncoderCreate();
+    if (!encoder) {
+        std::cerr << "imwriteAvif: avifEncoderCreate failed\n";
+        avifRGBImageFreePixels(&rgbAvif);
+        avifImageDestroy(imageAvif);
+        return false;
+    }
+
+    int q = qualityToQuantizer(quality);
+    encoder->minQuantizer = q;
+    encoder->maxQuantizer = q;
+    // You can select a speed between 0 and 10; 0 = slowest, best quality
+    encoder->speed = 6; // default balance
+
+    avifRWData output = AVIF_DATA_EMPTY;
+    r = avifEncoderWrite(encoder, imageAvif, &output);
+    if (r != AVIF_RESULT_OK) {
+        std::cerr << "imwriteAvif: avifEncoderWrite failed: "
+                  << avifResultToString(r) << "\n";
+        avifRWDataFree(&output);
+        avifEncoderDestroy(encoder);
+        avifRGBImageFreePixels(&rgbAvif);
+        avifImageDestroy(imageAvif);
+        return false;
+    }
+
+    // Save to file
+    FILE* f = std::fopen(filename.c_str(), "wb");
+    if (!f) {
+        std::cerr << "imwriteAvif: cannot open file for write: "
+                  << filename << "\n";
+        avifRWDataFree(&output);
+        avifEncoderDestroy(encoder);
+        avifRGBImageFreePixels(&rgbAvif);
+        avifImageDestroy(imageAvif);
+        return false;
+    }
+
+    size_t written = std::fwrite(output.data, 1, output.size, f);
+    std::fclose(f);
+
+    bool ok = (written == output.size);
+    if (!ok) {
+        std::cerr << "imwriteAvif: fwrite incomplete\n";
+    }
+
+    avifRWDataFree(&output);
+    avifEncoderDestroy(encoder);
+    avifRGBImageFreePixels(&rgbAvif);
+    avifImageDestroy(imageAvif);
+
+    return ok;
+}
