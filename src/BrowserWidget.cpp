@@ -81,6 +81,9 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
         QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);
         files.sort(Qt::CaseInsensitive);
 
+        const int maxThumbW = 160;
+        const int maxThumbH = 160;
+
         for (const QString& fn : files) {
             if (cancelFlag_.load())
                 break;
@@ -90,22 +93,21 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
             if (img.isNull())
                 continue;
 
-            const int maxThumbW = 160;
-            const int maxThumbH = 160;
-
             QImage thumb = img;
-
-            // tylko downscale – nigdy nie powiększamy miniatur
             if (img.width() > maxThumbW || img.height() > maxThumbH) {
                 thumb = img.scaled(maxThumbW, maxThumbH,
                                    Qt::KeepAspectRatio,
                                    Qt::SmoothTransformation);
             }
 
-
             QMetaObject::invokeMethod(
                 this,
-                [this, filePath, thumb]() {
+                [this, filePath, thumb, dirPath]() {
+                    // if we have moved to another directory in the meantime,
+                    // we ignore this thumbnail as expired
+                    if (dirPath != currentDir_)
+                        return;
+
                     addThumbnail(filePath, thumb);
                 },
                 Qt::QueuedConnection
@@ -127,9 +129,9 @@ void BrowserWidget::cancelThumbnailLoading()
 void BrowserWidget::addThumbnail(const QString& filePath, const QImage& image)
 {
     int index = gridLayout_->count();
-    int cols = 4;
-    int row = index / cols;
-    int col = index % cols;
+    int cols  = 4;
+    int row   = index / cols;
+    int col   = index % cols;
 
     auto* thumb = new ThumbWidget(filePath, image, thumbsWidget_);
     connect(thumb, &ThumbWidget::activated,
@@ -156,7 +158,6 @@ void BrowserWidget::ensureDirectoryLoaded(const QString& dirPath)
     cancelThumbnailLoading();
     currentDir_ = dirPath;
 
-    // select and expand folder in tree, but don't change root
     QModelIndex idx = fsModel_->index(dirPath);
     if (idx.isValid()) {
         tree_->setCurrentIndex(idx);
