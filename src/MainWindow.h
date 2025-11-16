@@ -2,6 +2,7 @@
 #define MAINWINDOW_H
 
 #include <array>
+#include <cmath>
 #include <QMainWindow>
 #include <QVector>
 #include <QString>
@@ -62,6 +63,8 @@ private:
     void goToIndex(int index);
 
     void moveCurrentImage();
+    double computePsnr(const cv::Mat& ref, const cv::Mat& test) const;
+    double computeSsim(const cv::Mat& ref, const cv::Mat& test) const;
 
     void openDoubleThresholdDialog();
     cv::Mat applyDoubleThresholdBW(const cv::Mat& src, int low, int high);

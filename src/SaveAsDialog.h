@@ -9,6 +9,12 @@
 #include <QCheckBox>
 #include "ImageFormats.h"
 
+enum class MetricType {
+    None,
+    PSNR,
+    SSIM
+};
+
 class QSpinBox;
 
 class SaveAsDialog : public QDialog
@@ -26,6 +32,12 @@ public:
     void clearFileSizeInfo();
     int formatToComboIndex(ImageFormat fmt) const;
     QCheckBox* showOriginalCheck_;
+
+    MetricType selectedMetric() const;
+    void setMetricInfo(const QString& text);
+    void clearMetricInfo();
+protected:
+    void closeEvent(QCloseEvent *e) override;
 signals:
     void previewRequested(ImageFormat format, int quality, bool showOriginal);
     void acceptedSave(ImageFormat format, int quality, bool showOriginal);
@@ -37,16 +49,23 @@ public slots:
     void onShowOriginalToggled(bool);
     void onApplyClicked();
     void onSaveClicked();
-    void closeEvent(QCloseEvent *e);
+
+    void onMetricPsnrToggled(bool checked);
+    void onMetricSsimToggled(bool checked);
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
     QSpinBox* qualitySpin_;
     QLabel*    sizeInfoLabel_;
 
+    QCheckBox* metricPsnrCheck_;
+    QCheckBox* metricSsimCheck_;
+    QLabel*    metricResultLabel_;
+
     bool isLossyCurrent_ = false;
 
     ImageFormat formatFromComboIndex(int index) const;
+    MetricType selectedMetric_ = MetricType::None;
 };
 
 #endif // SAVEASDIALOG_H

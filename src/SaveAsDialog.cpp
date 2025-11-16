@@ -61,6 +61,24 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     sizeInfoLabel_ = new QLabel(tr("Size: -"), this);
     mainLayout->addWidget(sizeInfoLabel_);
 
+    auto* metricsLayout = new QHBoxLayout;
+    metricPsnrCheck_ = new QCheckBox(tr("PSNR"), this);
+    metricSsimCheck_ = new QCheckBox(tr("SSIM"), this);
+    metricsLayout->addWidget(new QLabel(tr("Metrics:"), this));
+    metricsLayout->addWidget(metricPsnrCheck_);
+    metricsLayout->addWidget(metricSsimCheck_);
+    metricsLayout->addStretch();
+    mainLayout->addLayout(metricsLayout);
+
+    metricResultLabel_ = new QLabel(this);
+    metricResultLabel_->setVisible(false);
+    mainLayout->addWidget(metricResultLabel_);
+
+    connect(metricPsnrCheck_, &QCheckBox::toggled,
+            this, &SaveAsDialog::onMetricPsnrToggled);
+    connect(metricSsimCheck_, &QCheckBox::toggled,
+            this, &SaveAsDialog::onMetricSsimToggled);
+
     auto* btnLayout = new QHBoxLayout;
     auto* applyBtn = new QPushButton(tr("Preview"), this);
     auto* saveBtn  = new QPushButton(tr("Save"), this);
@@ -155,11 +173,14 @@ void SaveAsDialog::onFormatChanged(int index)
     bool lossy = isAlwaysLossyFormat(fmt)
                  || (fmt == ImageFormat::Webp)
                  || (fmt == ImageFormat::Avif);
-    // Możesz tu dodać swoją logikę: WebP/AVIF – traktujesz jako „kompresja stratna
-    // w tym trybie Save As”.
+    // You can add your logic here: WebP/AVIF – treat as "lossy compression
+    // in this Save As mode."
     setLossy(lossy);
 
-    // Po zmianie formatu warto wymusić odświeżenie preview:
+    clearFileSizeInfo();
+    clearMetricInfo();
+
+    // After changing the format, it is worth forcing a refresh of the preview:
     emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
 }
 
@@ -202,3 +223,53 @@ void SaveAsDialog::closeEvent(QCloseEvent* e)
     emit dialogClosed();
     QDialog::closeEvent(e);
 }
+
+MetricType SaveAsDialog::selectedMetric() const
+{
+    return selectedMetric_;
+}
+
+void SaveAsDialog::setMetricInfo(const QString& text)
+{
+    metricResultLabel_->setText(text);
+    metricResultLabel_->setVisible(!text.isEmpty());
+}
+
+void SaveAsDialog::clearMetricInfo()
+{
+    metricResultLabel_->clear();
+    metricResultLabel_->setVisible(false);
+}
+
+
+void SaveAsDialog::onMetricPsnrToggled(bool checked)
+{
+    if (checked) {
+        // wyłącz SSIM, ustaw PSNR
+        metricSsimCheck_->blockSignals(true);
+        metricSsimCheck_->setChecked(false);
+        metricSsimCheck_->blockSignals(false);
+        selectedMetric_ = MetricType::PSNR;
+    } else {
+        // odznaczony → jeśli drugi nie jest zaznaczony, mamy None
+        if (!metricSsimCheck_->isChecked())
+            selectedMetric_ = MetricType::None;
+    }
+    clearMetricInfo();
+    // nie wywołuję tutaj preview – i tak poleci przy zmianie jakości/formatu
+}
+
+void SaveAsDialog::onMetricSsimToggled(bool checked)
+{
+    if (checked) {
+        metricPsnrCheck_->blockSignals(true);
+        metricPsnrCheck_->setChecked(false);
+        metricPsnrCheck_->blockSignals(false);
+        selectedMetric_ = MetricType::SSIM;
+    } else {
+        if (!metricPsnrCheck_->isChecked())
+            selectedMetric_ = MetricType::None;
+    }
+    clearMetricInfo();
+}
+
