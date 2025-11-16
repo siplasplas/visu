@@ -1,6 +1,7 @@
 #ifndef MAINWINDOW_H
 #define MAINWINDOW_H
 
+#include <array>
 #include <QMainWindow>
 #include <QVector>
 #include <QString>
@@ -10,6 +11,7 @@
 class QLabel;
 class ImageWidget;
 class DoubleThresholdDialog;
+class ShadowCompressionDialog;
 
 class MainWindow : public QMainWindow
 {
@@ -51,13 +53,19 @@ private:
     QString baseDirectory_;
     QVector<QString> recentMoveDirs_;
 
-    // NEW: obrazy w pamięci
     cv::Mat originalMat_;
     cv::Mat currentMat_;
 
     void openDirectory();
     void openFile();
 
+    void openShadowCompressionDialog();
+    cv::Mat applyShadowCompression(const cv::Mat& src, int T, double gamma, int maxOut);
+
+    void computeHistogram(const cv::Mat& gray);
+    int estimateTFromHistogram() const;
+
+    std::array<uint64_t, 256> histogram_{};   // aktualny histogram 0..255
 };
 
 #endif // MAINWINDOW_H

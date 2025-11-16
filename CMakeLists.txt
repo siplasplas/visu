@@ -19,6 +19,8 @@ add_executable(visu
         src/ImageWidget.cpp
         src/DoubleThresholdDialog.h
         src/DoubleThresholdDialog.cpp
+        src/ShadowCompressionDialog.h
+        src/ShadowCompressionDialog.cpp
 )
 
 target_include_directories(visu PRIVATE

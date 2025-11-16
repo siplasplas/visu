@@ -1,6 +1,8 @@
 #include "MainWindow.h"
 #include "ImageWidget.h"
 #include "DoubleThresholdDialog.h"
+#include "ShadowCompressionDialog.h"
+#include <array>
 #include <algorithm>
 
 #include <QStatusBar>
@@ -109,6 +111,12 @@ void MainWindow::initUi()
     connect(doubleThAct, &QAction::triggered,
             this, &MainWindow::openDoubleThresholdDialog);
     imageMenu->addAction(doubleThAct);
+
+    auto softThAct = new QAction(tr("Shadow Compression..."), this);
+    softThAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    connect(softThAct, &QAction::triggered,
+            this, &MainWindow::openShadowCompressionDialog);
+    imageMenu->addAction(softThAct);
 }
 
 bool MainWindow::isImageFile(const QString& filePath) const
@@ -174,6 +182,13 @@ void MainWindow::loadImageAt(int index)
     currentMat_  = img.clone();
     imageWidget_->setImage(currentMat_);
 
+    cv::Mat gray;
+    if (originalMat_.channels() == 3)
+        cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = originalMat_;
+    computeHistogram(gray);
+
     // przelicz piksel pod kursorem
     {
         QPoint globalPos = QCursor::pos();
@@ -185,6 +200,7 @@ void MainWindow::loadImageAt(int index)
     setWindowTitle(QString("visu - %1").arg(fi.fileName()));
     updateIndexLabel();
 }
+
 
 void MainWindow::updateIndexLabel()
 {
@@ -433,6 +449,15 @@ void MainWindow::openDoubleThresholdDialog()
             // 5) nowa baza
             originalMat_ = currentMat_.clone();
 
+            {
+                cv::Mat gray;
+                if (originalMat_.channels() == 3)
+                    cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+                else
+                    gray = originalMat_;
+                computeHistogram(gray);
+            }
+
             dlg->close();
         });
 
@@ -613,4 +638,146 @@ void MainWindow::openFile()
         currentIndex_ = 0;
 
     loadImageAt(currentIndex_);
+}
+
+void MainWindow::computeHistogram(const cv::Mat& gray)
+{
+    histogram_.fill(0);
+    CV_Assert(gray.type() == CV_8UC1);
+
+    for (int y = 0; y < gray.rows; ++y) {
+        const uchar* row = gray.ptr<uchar>(y);
+        for (int x = 0; x < gray.cols; ++x) {
+            ++histogram_[row[x]];
+        }
+    }
+}
+
+int MainWindow::estimateTFromHistogram() const
+{
+    // znajdź ostatnią wartość <255, gdzie histogram_ > 0
+    for (int i = 254; i >= 0; --i) {
+        if (histogram_[static_cast<size_t>(i)] > 0)
+            return i;
+    }
+    // fallback
+    return 242;
+}
+
+cv::Mat MainWindow::applyShadowCompression(const cv::Mat& src,
+                                       int T, double gamma, int maxOut)
+{
+    // parametry w rozsądnych granicach
+    T      = std::clamp(T, 1, 254);
+    maxOut = std::clamp(maxOut, 1, 254);
+    if (gamma <= 0.0) gamma = 1.0;
+
+    // konwersja do gray
+    cv::Mat gray;
+    if (src.channels() == 3)
+        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = src.clone();
+
+    CV_Assert(gray.type() == CV_8UC1);
+
+    // LUT
+    cv::Mat lut(1, 256, CV_8UC1);
+    uchar* p = lut.ptr<uchar>();
+
+    for (int v = 0; v < 256; ++v) {
+        uchar out = 0;
+
+        if (v == 255) {
+            // tło zostaje białe
+            out = 255;
+        } else {
+            int vClamped = std::min(v, T);
+            double x = static_cast<double>(vClamped) / static_cast<double>(T); // [0,1]
+            double y = std::pow(x, gamma);                                     // [0,1]
+            double scaled = y * maxOut;                                        // [0,maxOut]
+
+            if (scaled < 0.0)   scaled = 0.0;
+            if (scaled > 255.0) scaled = 255.0;
+
+            out = static_cast<uchar>(std::lround(scaled));
+        }
+
+        p[v] = out;
+    }
+
+    cv::Mat out;
+    cv::LUT(gray, lut, out);
+    return out;
+}
+
+void MainWindow::openShadowCompressionDialog()
+{
+    if (originalMat_.empty())
+        return;
+
+    auto* dlg = new ShadowCompressionDialog(this);
+
+    // startowe T z histogramu
+    int tFromHist = estimateTFromHistogram();
+    dlg->setT(tFromHist);
+
+    // Preview
+    connect(dlg, &ShadowCompressionDialog::previewRequested,
+            this, [this](int T, double gamma, int maxOut) {
+                cv::Mat preview = applyShadowCompression(originalMat_, T, gamma, maxOut);
+                currentMat_ = preview.clone();
+                imageWidget_->setImage(currentMat_);
+            });
+
+    // przycisk "T from histogram"
+    connect(dlg, &ShadowCompressionDialog::requestTFromHistogram,
+            this, [this, dlg]() {
+                int tFromHist = estimateTFromHistogram();
+                dlg->setT(tFromHist);
+                // od razu podgląd z nowym T
+                dlg->onPreviewClicked(); // jeśli chcesz; jeśli nie – usuń tę linię
+            });
+
+    // OK – zastosuj sshadow compression, zapisz do pliku, zaktualizuj bazę + histogram
+    connect(dlg, &QDialog::accepted,
+            this, [this, dlg]() {
+                int T      = dlg->tValue();
+                double g   = dlg->gammaValue();
+                int maxOut = dlg->maxOutValue();
+
+                cv::Mat result = applyShadowCompression(originalMat_, T, g, maxOut);
+                currentMat_ = result.clone();
+                imageWidget_->setImage(currentMat_);
+
+                // zapis do pliku
+                if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
+                    const QString path = imageFiles_[currentIndex_];
+                    cv::imwrite(path.toStdString(), currentMat_);
+                }
+
+                // nowa baza + histogram
+                originalMat_ = currentMat_.clone();
+
+                cv::Mat gray;
+                if (originalMat_.channels() == 3)
+                    cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+                else
+                    gray = originalMat_;
+                computeHistogram(gray);
+
+                dlg->close();
+            });
+
+    // Cancel – przywróć oryginał
+    connect(dlg, &QDialog::rejected,
+            this, [this, dlg]() {
+                if (!originalMat_.empty()) {
+                    currentMat_ = originalMat_.clone();
+                    imageWidget_->setImage(currentMat_);
+                }
+                dlg->close();
+            });
+
+    dlg->show();
 }
