@@ -5,6 +5,7 @@
 #include <QMainWindow>
 #include <QVector>
 #include <QString>
+#include <QStackedWidget>
 
 #include <opencv2/opencv.hpp>
 
@@ -12,6 +13,7 @@ class QLabel;
 class ImageWidget;
 class DoubleThresholdDialog;
 class ShadowCompressionDialog;
+class BrowserWidget;
 
 class MainWindow : public QMainWindow
 {
@@ -22,6 +24,9 @@ public:
 
 private slots:
     void onPixelInfoChanged(int x, int y, int r, int g, int b);
+    void switchToBrowserMode();
+    void switchToSingleMode();
+    void onThumbnailActivated(const QString& filePath);
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -42,6 +47,8 @@ private:
                                         bool lowColorize, bool highColorize);
 
 
+    QStackedWidget* stacked_ = nullptr;
+    BrowserWidget* browserWidget_ = nullptr;
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;
     QLabel* rgbLabel_   = nullptr;

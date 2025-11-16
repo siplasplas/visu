@@ -1,4 +1,5 @@
 #include "MainWindow.h"
+#include "BrowserWidget.h"
 #include "ImageWidget.h"
 #include "DoubleThresholdDialog.h"
 #include "ShadowCompressionDialog.h"
@@ -59,8 +60,16 @@ MainWindow::MainWindow(const QString& startFilePath, QWidget* parent)
 
 void MainWindow::initUi()
 {
-    imageWidget_ = new ImageWidget(this);
-    setCentralWidget(imageWidget_);
+    stacked_ = new QStackedWidget(this);
+
+    browserWidget_ = new BrowserWidget(this);
+    imageWidget_   = new ImageWidget(this);
+    stacked_->addWidget(browserWidget_);
+    stacked_->addWidget(imageWidget_);
+    setCentralWidget(stacked_);
+
+    connect(browserWidget_, &BrowserWidget::thumbnailActivated,
+            this, &MainWindow::onThumbnailActivated);
 
     coordLabel_ = new QLabel(this);
     rgbLabel_   = new QLabel(this);
@@ -104,8 +113,15 @@ void MainWindow::initUi()
     connect(quitAct, &QAction::triggered, this, &QWidget::close);
     fileMenu->addAction(quitAct);
 
-    auto imageMenu = menuBar()->addMenu(tr("&Image"));
+    auto viewMenu = menuBar()->addMenu(tr("&View"));
+    auto browserAct = new QAction(tr("Browser mode"), this);
+    auto singleAct  = new QAction(tr("Single image mode"), this);
+    connect(browserAct, &QAction::triggered, this, &MainWindow::switchToBrowserMode);
+    connect(singleAct,  &QAction::triggered, this, &MainWindow::switchToSingleMode);
+    viewMenu->addAction(browserAct);
+    viewMenu->addAction(singleAct);
 
+    auto imageMenu = menuBar()->addMenu(tr("&Image"));
     auto doubleThAct = new QAction(tr("Double Threshold..."), this);
     doubleThAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
     connect(doubleThAct, &QAction::triggered,
@@ -780,4 +796,31 @@ void MainWindow::openShadowCompressionDialog()
             });
 
     dlg->show();
+}
+
+
+void MainWindow::switchToBrowserMode()
+{
+    stacked_->setCurrentWidget(browserWidget_);
+}
+
+void MainWindow::switchToSingleMode()
+{
+    stacked_->setCurrentWidget(imageWidget_);
+}
+
+void MainWindow::onThumbnailActivated(const QString& filePath)
+{
+    QFileInfo fi(filePath);
+    const QString dir  = fi.absolutePath();
+    const QString file = fi.absoluteFilePath();
+
+    scanDirectory(dir, file); // todo: not needed here
+
+    if (!imageFiles_.isEmpty()) {
+        if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+            currentIndex_ = 0;
+        loadImageAt(currentIndex_);
+        switchToSingleMode();
+    }
 }

@@ -21,6 +21,10 @@ add_executable(visu
         src/DoubleThresholdDialog.cpp
         src/ShadowCompressionDialog.h
         src/ShadowCompressionDialog.cpp
+        src/BrowserWidget.cpp
+        src/BrowserWidget.h
+        src/ThumbLabel.h
+        src/ThumbLabel.cpp
 )
 
 target_include_directories(visu PRIVATE

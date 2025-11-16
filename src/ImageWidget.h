@@ -17,8 +17,8 @@ public:
 
     void updatePixelInfoAt(const QPoint& widgetPos);
 
-    signals:
-        void pixelInfoChanged(int x, int y, int r, int g, int b);
+signals:
+    void pixelInfoChanged(int x, int y, int r, int g, int b);
 
 protected:
     void paintEvent(QPaintEvent* event) override;

@@ -103,6 +103,3 @@ void ImageWidget::updatePixelInfoAt(const QPoint& pos)
 
     emit pixelInfoChanged(imgX, imgY, r, g, b);
 }
-//
-// Created by andrzej on 11/14/25.
-//
