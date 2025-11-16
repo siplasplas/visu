@@ -9,6 +9,8 @@
 #include <QCheckBox>
 #include "ImageFormats.h"
 
+class QSpinBox;
+
 class SaveAsDialog : public QDialog
 {
     Q_OBJECT
@@ -30,7 +32,7 @@ signals:
 public slots:
     void onFormatChanged(int index);
     void onQualitySliderChanged(int value);
-    void onQualityEditChanged(const QString& text);
+    void onQualitySpinChanged(int value);
     void onShowOriginalToggled(bool);
     void onApplyClicked();
     void onSaveClicked();
@@ -38,7 +40,7 @@ public slots:
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
-    QLineEdit* qualityEdit_;
+    QSpinBox* qualitySpin_;
     QLabel*    sizeInfoLabel_;
 
     bool isLossyCurrent_ = false;

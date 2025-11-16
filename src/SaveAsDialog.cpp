@@ -2,6 +2,7 @@
 #include <QVBoxLayout>
 #include <QHBoxLayout>
 #include <QPushButton>
+#include <QSpinBox>
 #include <QWindow>
 
 SaveAsDialog::SaveAsDialog(QWidget* parent)
@@ -37,19 +38,20 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     qualitySlider_->setRange(1, 100);
     qualitySlider_->setValue(90);
 
-    qualityEdit_ = new QLineEdit(QString::number(90), this);
-    qualityEdit_->setFixedWidth(50);
+    qualitySpin_ = new QSpinBox(this);
+    qualitySpin_->setRange(0, 100);
+    qualitySpin_->setValue(90);
 
     auto* qualityLayout = new QHBoxLayout;
     qualityLayout->addWidget(new QLabel(tr("Quality:"), this));
     qualityLayout->addWidget(qualitySlider_);
-    qualityLayout->addWidget(qualityEdit_);
+    qualityLayout->addWidget(qualitySpin_);
     mainLayout->addLayout(qualityLayout);
 
     connect(qualitySlider_, &QSlider::valueChanged,
             this, &SaveAsDialog::onQualitySliderChanged);
-    connect(qualityEdit_, &QLineEdit::textChanged,
-            this, &SaveAsDialog::onQualityEditChanged);
+    connect(qualitySpin_, &QSpinBox::valueChanged,
+            this, &SaveAsDialog::onQualitySpinChanged);
 
     showOriginalCheck_ = new QCheckBox(tr("Show original"), this);
     connect(showOriginalCheck_, &QCheckBox::toggled,
@@ -127,7 +129,7 @@ void SaveAsDialog::setLossy(bool lossy)
 {
     isLossyCurrent_ = lossy;
     qualitySlider_->setEnabled(lossy);
-    qualityEdit_->setEnabled(lossy);
+    qualitySpin_->setEnabled(lossy);
     // Dla bezstratnych formatów slider/edit wyłączone, ale dialog może służyć tylko do wyboru formatu i Save.
 }
 
@@ -163,18 +165,15 @@ void SaveAsDialog::onFormatChanged(int index)
 
 void SaveAsDialog::onQualitySliderChanged(int value)
 {
-    if (qualityEdit_->text().toInt() != value)
-        qualityEdit_->setText(QString::number(value));
+    if (qualitySpin_->value() != value)
+        qualitySpin_->setValue(value);
     if (isLossyCurrent_)
         emit previewRequested(selectedFormat(), value, showOriginalChecked());
 }
 
-void SaveAsDialog::onQualityEditChanged(const QString& text)
+void SaveAsDialog::onQualitySpinChanged(int value)
 {
-    bool ok = false;
-    int v = text.toInt(&ok);
-    if (!ok)
-        return;
+    int v = value;
     if (v < 1) v = 1;
     if (v > 100) v = 100;
     if (qualitySlider_->value() != v)
