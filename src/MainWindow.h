@@ -36,6 +36,9 @@ protected:
 
 private:
     void initUi();
+
+    void updateActionsForMode();
+
     void scanDirectory(const QString& directory, const QString& startFilePath);
     bool isImageFile(const QString& filePath) const;
     void loadImageAt(int index);
@@ -66,6 +69,10 @@ private:
 
     cv::Mat originalMat_;
     cv::Mat currentMat_;
+
+    QAction* moveAct_;
+    QAction* doubleThAct_;
+    QAction* shadowCompAct_;
 
     void openDirectory();
     void openFile();

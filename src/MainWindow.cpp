@@ -122,11 +122,11 @@ void MainWindow::initUi()
     fileMenu->addAction(openDirAct);
 
     // Move...
-    auto moveAct = new QAction(tr("Move..."), this);
-    moveAct->setShortcut(Qt::Key_M);
-    connect(moveAct, &QAction::triggered,
+    moveAct_ = new QAction(tr("Move..."), this);
+    moveAct_->setShortcut(Qt::Key_M);
+    connect(moveAct_, &QAction::triggered,
             this, &MainWindow::moveCurrentImage);
-    fileMenu->addAction(moveAct);
+    fileMenu->addAction(moveAct_);
 
     auto quitAct = new QAction(tr("Quit"), this);
     connect(quitAct, &QAction::triggered, this, &QWidget::close);
@@ -141,18 +141,27 @@ void MainWindow::initUi()
     viewMenu->addAction(singleAct);
 
     auto imageMenu = menuBar()->addMenu(tr("&Image"));
-    auto doubleThAct = new QAction(tr("Double Threshold..."), this);
-    doubleThAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
-    connect(doubleThAct, &QAction::triggered,
+    doubleThAct_ = new QAction(tr("Double Threshold..."), this);
+    doubleThAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_D));
+    connect(doubleThAct_, &QAction::triggered,
             this, &MainWindow::openDoubleThresholdDialog);
-    imageMenu->addAction(doubleThAct);
+    imageMenu->addAction(doubleThAct_);
 
-    auto softThAct = new QAction(tr("Shadow Compression..."), this);
-    softThAct->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
-    connect(softThAct, &QAction::triggered,
+    shadowCompAct_ = new QAction(tr("Shadow Compression..."), this);
+    shadowCompAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_T));
+    connect(shadowCompAct_, &QAction::triggered,
             this, &MainWindow::openShadowCompressionDialog);
-    imageMenu->addAction(softThAct);
+    imageMenu->addAction(shadowCompAct_);
 }
+
+void MainWindow::updateActionsForMode()
+{
+    const bool single = (stacked_->currentIndex() == 1);
+    doubleThAct_->setEnabled(single);
+    shadowCompAct_->setEnabled(single);
+    moveAct_->setEnabled(single);
+}
+
 
 bool MainWindow::isImageFile(const QString& filePath) const
 {
@@ -829,11 +838,13 @@ void MainWindow::switchToBrowserMode()
     if (!maybeSaveCurrentImage())
         return; // Cancel
     stacked_->setCurrentWidget(browserWidget_);
+    updateActionsForMode();
 }
 
 void MainWindow::switchToSingleMode()
 {
     stacked_->setCurrentWidget(imageWidget_);
+    updateActionsForMode();
 }
 
 void MainWindow::onThumbnailActivated(const QString& filePath)
