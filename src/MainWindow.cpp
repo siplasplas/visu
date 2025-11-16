@@ -351,6 +351,8 @@ void MainWindow::moveCurrentImage()
 {
     if (imageFiles_.isEmpty() || currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
         return;
+    if (!maybeSaveCurrentImage())
+        return; // Cancel
 
     const QString currentFile = imageFiles_[currentIndex_];
     QFileInfo curInfo(currentFile);
