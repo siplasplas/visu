@@ -26,38 +26,54 @@
 
 #include <opencv2/opencv.hpp>
 
-MainWindow::MainWindow(const QString& startFilePath, QWidget* parent)
+MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     : QMainWindow(parent)
 {
     initUi();
-
-    QString dirPath;
-    QString normalizedStartFile;
-
-    if (!startFilePath.isEmpty()) {
-        QFileInfo fi(startFilePath);
-        if (fi.exists() && fi.isFile()) {
-            dirPath = fi.absolutePath();
-            normalizedStartFile = fi.absoluteFilePath();
-        }
-    }
-
-    if (dirPath.isEmpty()) {
-        dirPath = QDir::currentPath();
-    }
-
-    baseDirectory_ = dirPath;              // NEW: zapamiętujemy katalog bazowy
-    scanDirectory(dirPath, normalizedStartFile);
-
-    if (!imageFiles_.isEmpty()) {
-        if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
-            currentIndex_ = 0;
-        loadImageAt(currentIndex_);
-    } else {
-        setWindowTitle("visu - (no images)");
-    }
-
     resize(1024, 768);
+
+    if (startPath.isEmpty()) {
+        switchToBrowserMode();
+        return;
+    }
+
+    QFileInfo fi(startPath);
+    if (!fi.exists()) {
+        QMessageBox::warning(this, tr("Invalid path"),
+                             tr("Path \"%1\" does not exist.").arg(startPath));
+        switchToBrowserMode();
+        return;
+    }
+
+    if (fi.isDir()) {
+        switchToBrowserMode();
+        browserWidget_->setRootDirectory(fi.absoluteFilePath());
+        return;
+    }
+
+    QString suffix = fi.suffix().toLower();
+    const QStringList imageExt = {
+        "png","jpg","jpeg","bmp","gif","webp","tif","tiff"
+    };
+
+    if (!imageExt.contains(suffix)) {
+        QMessageBox::warning(this, tr("Unsupported file"),
+                             tr("File \"%1\" is not a supported image.").arg(startPath));
+        switchToBrowserMode();
+        return;
+    }
+
+    // ok – wczytać obraz i wejść w tryb single-image
+    QString dir  = fi.absolutePath();
+    QString file = fi.absoluteFilePath();
+
+    scanDirectory(dir, file);   // set imageFiles_, currentIndex_
+    if (!imageFiles_.isEmpty()) {
+        loadImageAt(currentIndex_);
+        switchToSingleMode();
+    } else {
+        switchToBrowserMode();
+    }
 }
 
 void MainWindow::initUi()

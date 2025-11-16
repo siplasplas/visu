@@ -15,9 +15,10 @@ class BrowserWidget : public QWidget
     Q_OBJECT
 public:
     explicit BrowserWidget(QWidget* parent = nullptr);
+    void setRootDirectory(const QString &path);
 
-    signals:
-        void thumbnailActivated(const QString& filePath); // klik w miniaturę
+signals:
+    void thumbnailActivated(const QString& filePath); // klik w miniaturę
 
 private slots:
     void onDirectorySelected(const QModelIndex& index);
@@ -28,7 +29,6 @@ private:
     void startLoadingThumbnails(const QString& dirPath);
     void cancelThumbnailLoading();
     void addThumbnail(const QString& filePath, const QImage& image);
-
     QFileSystemModel* fsModel_     = nullptr;
     QTreeView*        tree_        = nullptr;
     QScrollArea*      scrollArea_  = nullptr;

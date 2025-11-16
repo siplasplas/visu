@@ -138,3 +138,10 @@ void BrowserWidget::addThumbnail(const QString& filePath, const QImage& image)
 
     gridLayout_->addWidget(thumb, row, col);
 }
+
+void BrowserWidget::setRootDirectory(const QString& path)
+{
+    QModelIndex idx = fsModel_->index(path);
+    if (idx.isValid())
+        tree_->setRootIndex(idx);
+}
