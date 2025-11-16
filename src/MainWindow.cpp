@@ -29,6 +29,8 @@
 
 #include <opencv2/opencv.hpp>
 
+#include "avif_opencv.h"
+
 MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     : QMainWindow(parent)
 {
@@ -56,7 +58,7 @@ MainWindow::MainWindow(const QString& startPath, QWidget* parent)
 
     QString suffix = fi.suffix().toLower();
     const QStringList imageExt = {
-        "png","jpg","jpeg","bmp","gif","webp","tif","tiff"
+        "png","jpg","jpeg","bmp","gif","webp","tif","tiff", "avif"
     };
 
     if (!imageExt.contains(suffix)) {
@@ -169,7 +171,7 @@ void MainWindow::updateActionsForMode()
 bool MainWindow::isImageFile(const QString& filePath) const
 {
     static const QStringList exts = {
-        "jpg", "jpeg", "png", "bmp", "gif", "tif", "tiff", "webp"
+        "jpg", "jpeg", "png", "bmp", "gif", "tif", "tiff", "webp", "avif"
     };
 
     QFileInfo fi(filePath);
@@ -213,13 +215,25 @@ void MainWindow::scanDirectory(const QString& directory, const QString& startFil
     // if start file not found , currentIndex_ will set later
 }
 
+cv::Mat MainWindow::loadAnyImage(const QString& path)
+{
+    const std::string fn = path.toStdString();
+    QString ext = QFileInfo(path).suffix().toLower();
+
+    if (ext == "avif") {
+        return imreadAvif(fn, cv::IMREAD_COLOR);
+    } else {
+        return cv::imread(fn, cv::IMREAD_COLOR);
+    }
+}
+
 void MainWindow::loadImageAt(int index)
 {
     if (index < 0 || index >= imageFiles_.size())
         return;
 
     const QString& path = imageFiles_[index];
-    cv::Mat img = cv::imread(path.toStdString(), cv::IMREAD_COLOR);
+    cv::Mat img = loadAnyImage(path);
     if (img.empty()) {
         return;
     }
@@ -978,7 +992,8 @@ void MainWindow::revertCurrentImage()
 
     const QString path = imageFiles_[currentIndex_];
 
-    cv::Mat img = cv::imread(path.toStdString(), cv::IMREAD_COLOR);
+    cv::Mat img = loadAnyImage(path);
+
     if (img.empty()) {
         QMessageBox::warning(this, tr("Reload failed"),
                              tr("Could not reload picture from \"%1\".").arg(path));

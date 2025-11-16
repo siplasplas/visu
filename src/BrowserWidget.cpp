@@ -76,7 +76,7 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
         QDir dir(dirPath);
         QStringList nameFilters;
         nameFilters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp"
-                    << "*.gif" << "*.webp" << "*.tif" << "*.tiff";
+                    << "*.gif" << "*.webp" << "*.tif" << "*.tiff" << "*.avif";
 
         QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);
         files.sort(Qt::CaseInsensitive);

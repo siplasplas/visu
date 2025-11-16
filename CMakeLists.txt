@@ -26,13 +26,20 @@ add_executable(visu
         src/ThumbWidget.cpp
         src/ThumbWidget.h
         src/DirOnlyModel.h
+        src/avif_opencv.cpp
+        src/avif_opencv.h
 )
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(AVIF REQUIRED libavif)
 
 target_include_directories(visu PRIVATE
         ${OpenCV_INCLUDE_DIRS}
+        ${AVIF_INCLUDE_DIRS}
 )
 
 target_link_libraries(visu PRIVATE
         Qt6::Widgets
         ${OpenCV_LIBS}
+        ${AVIF_LIBRARIES}
 )

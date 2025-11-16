@@ -40,6 +40,9 @@ private:
     void updateActionsForMode();
 
     void scanDirectory(const QString& directory, const QString& startFilePath);
+
+    cv::Mat loadAnyImage(const QString &path);
+
     bool isImageFile(const QString& filePath) const;
     void loadImageAt(int index);
     void updateIndexLabel();
