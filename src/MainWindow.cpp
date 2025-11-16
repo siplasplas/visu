@@ -309,6 +309,9 @@ void MainWindow::keyPressEvent(QKeyEvent* event)
     bool handled = false;
 
     switch (event->key()) {
+        case Qt::Key_Escape:
+            switchToBrowserMode();
+            break;
         case Qt::Key_Left:
         case Qt::Key_PageUp:
             goToIndex(currentIndex_ - 1);
