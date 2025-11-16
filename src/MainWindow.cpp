@@ -18,9 +18,11 @@
 #include <QDialog>
 #include <QVBoxLayout>
 #include <QComboBox>
-#include <QDialogButtonBox>
-#include <QMessageBox>
 #include <QFileDialog>
+#include <QMessageBox>
+#include <QFile>
+#include <QCheckBox>
+#include <QPushButton>
 
 #include <opencv2/opencv.hpp>
 
@@ -178,7 +180,7 @@ void MainWindow::scanDirectory(const QString& directory, const QString& startFil
         }
     }
 
-    // jeśli nie znaleziono pliku startowego, currentIndex_ zostanie ustawiony później
+    // if start file not found , currentIndex_ will set later
 }
 
 void MainWindow::loadImageAt(int index)
@@ -213,6 +215,9 @@ void MainWindow::loadImageAt(int index)
     }
 
     QFileInfo fi(path);
+    originalFileTime_ = fi.lastModified();
+    hasOriginalFileTime_ = originalFileTime_.isValid();
+    imageDirty_ = false;
     setWindowTitle(QString("visu - %1").arg(fi.fileName()));
     updateIndexLabel();
 }
@@ -237,6 +242,9 @@ void MainWindow::updateIndexLabel()
 void MainWindow::goToIndex(int index) {
     if (imageFiles_.isEmpty())
         return;
+
+    if (!maybeSaveCurrentImage())
+        return; // chosen Cancel
 
     if (index < 0)
         index = 0;
@@ -453,26 +461,18 @@ void MainWindow::openDoubleThresholdDialog()
             // 3) Kolorów NIE bierzemy pod uwagę → BW
             cv::Mat result = applyDoubleThresholdBW(originalMat_, low, high);
 
-            currentMat_ = result.clone();
+            originalMat_ = result.clone();
+            currentMat_  = originalMat_.clone();
             imageWidget_->setImage(currentMat_);
 
-            // 4) zapis na dysk
-            if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
-                const QString path = imageFiles_[currentIndex_];
-                cv::imwrite(path.toStdString(), currentMat_);
-            }
+            imageDirty_ = true;
 
-            // 5) nowa baza
-            originalMat_ = currentMat_.clone();
-
-            {
-                cv::Mat gray;
-                if (originalMat_.channels() == 3)
-                    cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
-                else
-                    gray = originalMat_;
-                computeHistogram(gray);
-            }
+            cv::Mat gray;
+            if (originalMat_.channels() == 3)
+                cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+            else
+                gray = originalMat_;
+            computeHistogram(gray);
 
             dlg->close();
         });
@@ -573,6 +573,8 @@ bool highColorize) {
 
 void MainWindow::openDirectory()
 {
+    if (!maybeSaveCurrentImage())
+        return;
     QFileDialog dlg(this, tr("Select directory"));
     dlg.setFileMode(QFileDialog::Directory);
     dlg.setOption(QFileDialog::ShowDirsOnly, true);
@@ -610,6 +612,8 @@ void MainWindow::openDirectory()
 
 void MainWindow::openFile()
 {
+    if (!maybeSaveCurrentImage())
+        return;
     QFileDialog dlg(this, tr("Select image"));
     dlg.setFileMode(QFileDialog::ExistingFile);
     dlg.setOption(QFileDialog::DontUseNativeDialog, true);
@@ -746,44 +750,36 @@ void MainWindow::openShadowCompressionDialog()
                 imageWidget_->setImage(currentMat_);
             });
 
-    // przycisk "T from histogram"
     connect(dlg, &ShadowCompressionDialog::requestTFromHistogram,
             this, [this, dlg]() {
                 int tFromHist = estimateTFromHistogram();
                 dlg->setT(tFromHist);
-                // od razu podgląd z nowym T
-                dlg->onPreviewClicked(); // jeśli chcesz; jeśli nie – usuń tę linię
+                dlg->onPreviewClicked();
             });
 
-    // OK – zastosuj sshadow compression, zapisz do pliku, zaktualizuj bazę + histogram
     connect(dlg, &QDialog::accepted,
-            this, [this, dlg]() {
-                int T      = dlg->tValue();
-                double g   = dlg->gammaValue();
-                int maxOut = dlg->maxOutValue();
+        this, [this, dlg]() {
+            int T      = dlg->tValue();
+            double g   = dlg->gammaValue();
+            int maxOut = dlg->maxOutValue();
 
-                cv::Mat result = applyShadowCompression(originalMat_, T, g, maxOut);
-                currentMat_ = result.clone();
-                imageWidget_->setImage(currentMat_);
+            cv::Mat result = applyShadowCompression(originalMat_, T, g, maxOut);
 
-                // zapis do pliku
-                if (currentIndex_ >= 0 && currentIndex_ < imageFiles_.size()) {
-                    const QString path = imageFiles_[currentIndex_];
-                    cv::imwrite(path.toStdString(), currentMat_);
-                }
+            originalMat_ = result.clone();
+            currentMat_  = originalMat_.clone();
+            imageWidget_->setImage(currentMat_);
 
-                // nowa baza + histogram
-                originalMat_ = currentMat_.clone();
+            imageDirty_ = true;
 
-                cv::Mat gray;
-                if (originalMat_.channels() == 3)
-                    cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
-                else
-                    gray = originalMat_;
-                computeHistogram(gray);
+            cv::Mat gray;
+            if (originalMat_.channels() == 3)
+                cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+            else
+                gray = originalMat_;
+            computeHistogram(gray);
 
-                dlg->close();
-            });
+            dlg->close();
+        });
 
     // Cancel – przywróć oryginał
     connect(dlg, &QDialog::rejected,
@@ -801,6 +797,8 @@ void MainWindow::openShadowCompressionDialog()
 
 void MainWindow::switchToBrowserMode()
 {
+    if (!maybeSaveCurrentImage())
+        return; // Cancel
     stacked_->setCurrentWidget(browserWidget_);
 }
 
@@ -823,4 +821,127 @@ void MainWindow::onThumbnailActivated(const QString& filePath)
         loadImageAt(currentIndex_);
         switchToSingleMode();
     }
+}
+
+bool MainWindow::maybeSaveCurrentImage()
+{
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return true;
+    if (!imageDirty_)
+        return true;
+
+    const QString path = imageFiles_[currentIndex_];
+    QFileInfo fi(path);
+    const QString name = fi.fileName();
+
+    QMessageBox msg(this);
+    msg.setIcon(QMessageBox::Question);
+    msg.setWindowTitle(tr("Save changes"));
+    msg.setText(tr("Picture \"%1\" changed.").arg(name));
+    msg.setInformativeText(tr("Do you want to save your changes?"));
+
+    QPushButton* saveBtn    = msg.addButton(tr("Save"), QMessageBox::AcceptRole);
+    QPushButton* discardBtn = msg.addButton(tr("Discard"), QMessageBox::DestructiveRole);
+    QPushButton* cancelBtn  = msg.addButton(tr("Cancel"), QMessageBox::RejectRole);
+
+    // checkbox: restore original timestamp
+    QCheckBox* tsCheck = new QCheckBox(tr("Restore original timestamp"), &msg);
+    tsCheck->setChecked(false); // domyślnie WYŁĄCZONY
+    msg.setCheckBox(tsCheck);
+
+    msg.exec();
+
+    QAbstractButton* clicked = msg.clickedButton();
+    if (clicked == cancelBtn) {
+        // przerwać akcję (PageUp/PageDown, wyjście, przejście do Browser itp.)
+        return false;
+    } else if (clicked == saveBtn) {
+        bool ok = saveCurrentImage(tsCheck->isChecked());
+        return ok; // jeśli zapis się nie uda, zostawiamy obraz i nie wychodzimy
+    } else if (clicked == discardBtn) {
+        revertCurrentImage();
+        return true;
+    }
+
+    // na wszelki wypadek
+    return true;
+}
+
+bool MainWindow::saveCurrentImage(bool restoreTimestamp)
+{
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return true;
+
+    const QString path = imageFiles_[currentIndex_];
+
+    if (originalMat_.empty()) {
+        return true;
+    }
+
+    bool ok = cv::imwrite(path.toStdString(), originalMat_);
+    if (!ok) {
+        QMessageBox::warning(this, tr("Save failed"),
+                             tr("Could not save picture to \"%1\".").arg(path));
+        return false;
+    }
+
+    if (restoreTimestamp && hasOriginalFileTime_) {
+        QFile f(path);
+        if (!f.setFileTime(originalFileTime_, QFileDevice::FileModificationTime)) {
+            QMessageBox::warning(this, tr("Timestamp not restored"),
+                                 tr("Could not restore original timestamp for \"%1\".").arg(path));
+        }
+    }
+
+    imageDirty_ = false;
+
+    cv::Mat gray;
+    if (originalMat_.channels() == 3)
+        cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = originalMat_;
+    computeHistogram(gray);
+
+    return true;
+}
+
+void MainWindow::revertCurrentImage()
+{
+    if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+        return;
+
+    const QString path = imageFiles_[currentIndex_];
+
+    cv::Mat img = cv::imread(path.toStdString(), cv::IMREAD_COLOR);
+    if (img.empty()) {
+        QMessageBox::warning(this, tr("Reload failed"),
+                             tr("Could not reload picture from \"%1\".").arg(path));
+        return;
+    }
+
+    originalMat_ = img.clone();
+    currentMat_  = img.clone();
+    imageWidget_->setImage(currentMat_);
+
+    imageDirty_ = false;
+
+    cv::Mat gray;
+    if (originalMat_.channels() == 3)
+        cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = originalMat_;
+    computeHistogram(gray);
+
+    QFileInfo fi(path);
+    originalFileTime_ = fi.lastModified();
+    hasOriginalFileTime_ = originalFileTime_.isValid();
+}
+
+void MainWindow::closeEvent(QCloseEvent* event)
+{
+    if (!maybeSaveCurrentImage()) {
+        event->ignore();
+        return;
+    }
+    QMainWindow::closeEvent(event);
 }

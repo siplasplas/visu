@@ -6,6 +6,8 @@
 #include <QVector>
 #include <QString>
 #include <QStackedWidget>
+#include <QDateTime>
+#include <QCloseEvent>
 
 #include <opencv2/opencv.hpp>
 
@@ -30,6 +32,7 @@ private slots:
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
+    void closeEvent(QCloseEvent* event) override;
 
 private:
     void initUi();
@@ -72,7 +75,15 @@ private:
     void computeHistogram(const cv::Mat& gray);
     int estimateTFromHistogram() const;
 
-    std::array<uint64_t, 256> histogram_{};   // aktualny histogram 0..255
+    std::array<uint64_t, 256> histogram_{};   // current histogram 0..255
+
+    bool imageDirty_ = false;          // czy bieżący obraz zmodyfikowany
+    QDateTime originalFileTime_;       // czas pliku przy wczytaniu
+    bool hasOriginalFileTime_ = false; // czy mamy ważny timestamp
+
+    bool maybeSaveCurrentImage();      // popup Save / Discard / Cancel
+    bool saveCurrentImage(bool restoreTimestamp);
+    void revertCurrentImage();
 };
 
 #endif // MAINWINDOW_H
