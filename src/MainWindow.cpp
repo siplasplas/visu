@@ -28,6 +28,7 @@
 #include <QDir>
 
 #include <opencv2/opencv.hpp>
+#include <QtConcurrent/qtconcurrentrun.h>
 
 #include "avif_opencv.h"
 #include "jpeg_lossless.h"
@@ -81,6 +82,9 @@ MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     } else {
         switchToBrowserMode();
     }
+    previewWatcher_ = new QFutureWatcher<bool>(this);
+    connect(previewWatcher_, &QFutureWatcher<bool>::finished,
+            this, &MainWindow::onPreviewJobFinished);
 }
 
 void MainWindow::initUi()
@@ -1325,6 +1329,8 @@ void MainWindow::openSaveAsDialog()
         if (saveAsDlg_->showOriginalCheck_) {
             connect(saveAsDlg_->showOriginalCheck_, &QCheckBox::toggled,
                     this, &MainWindow::onShowOriginalClicked);
+        connect(saveAsDlg_, &SaveAsDialog::dialogClosed,
+            this, &MainWindow::closeSaveAsDialog);
         }
 
     }
@@ -1348,84 +1354,149 @@ void MainWindow::onShowOriginalClicked() {
 
 void MainWindow::onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool showOriginal)
 {
-    if (saveAsDlg_) {
-        saveAsDlg_->clearFileSizeInfo();   // hide status during compression
-        if (showOriginal)
-            return;
+    if (!saveAsDlg_ || originalMat_.empty())
+        return;
+
+    SaveAsRequest req{ fmt, quality, showOriginal };
+
+    // 1. Show original → zero kompresji
+    if (showOriginal) {
+        pendingRequest_.reset();
+        if (!previewJobRunning_) {
+            saveAsDlg_->clearFileSizeInfo();
+            previewMat_.release();
+            imageWidget_->setImage(originalMat_);
+        }
+        return;
     }
-    // Lossless: we do not do compression previews
+
+    // 2. Format bezstratny (PNG/BMP/TIFF) – nie ma sensu robić preview kompresji
     if (!isAlwaysLossyFormat(fmt) &&
         fmt != ImageFormat::Webp &&
-        fmt != ImageFormat::Avif) {
-        // always show original
-        imageWidget_->setImage(originalMat_);
+        fmt != ImageFormat::Avif)
+    {
+        pendingRequest_.reset();
+        saveAsDlg_->clearFileSizeInfo();
         previewMat_.release();
-        if (saveAsDlg_) {
-            saveAsDlg_->setFileSizeInfo(0, 0.0);
-        }
+        imageWidget_->setImage(originalMat_);
         return;
     }
 
-    // lossy: compression to /dev/shm
-    QString ext;
-    switch (fmt) {
-    case ImageFormat::Jpeg: ext = "jpg"; break;
-    case ImageFormat::Webp: ext = "webp"; break;
-    case ImageFormat::Avif: ext = "avif"; break;
-    default: ext = "jpg"; break;
+    // 3. Jeśli job już działa → tylko zapisz jako pending, nie odpalaj nowego
+    if (previewJobRunning_) {
+        pendingRequest_ = req;
+        return;
     }
 
-    QString tmpPath = QString("/dev/shm/visu_preview_%1.%2")
-                          .arg(QCoreApplication::applicationPid())
-                          .arg(ext);
-    previewTempPath_ = tmpPath;
+    // 4. Job nie działa → startujemy nowy
+    startPreviewJob(req);
+}
 
-    // save to tmp (JPEG/WebP via OpenCV, AVIF via imwriteAvif)
-    bool ok = false;
-    if (fmt == ImageFormat::Jpeg) {
-        std::vector<int> params = { cv::IMWRITE_JPEG_QUALITY, quality };
-        ok = cv::imwrite(tmpPath.toStdString(), originalMat_, params);
-    } else if (fmt == ImageFormat::Webp) {
-        std::vector<int> params = { cv::IMWRITE_WEBP_QUALITY, quality };
-        ok = cv::imwrite(tmpPath.toStdString(), originalMat_, params);
-    } else if (fmt == ImageFormat::Avif) {
-        ok = imwriteAvif(tmpPath.toStdString(), originalMat_, quality);
-    }
+void MainWindow::startPreviewJob(const SaveAsRequest& req)
+{
+    previewJobRunning_ = true;
+    pendingRequest_.reset();
+
+    saveAsDlg_->clearFileSizeInfo();
+
+    // dane potrzebne w wątku
+    cv::Mat src = originalMat_.clone();
+    ImageFormat fmt = req.format;
+    int quality = req.quality;
+
+    QString ext = (fmt == ImageFormat::Jpeg) ? "jpg" :
+                  (fmt == ImageFormat::Webp) ? "webp" :
+                  (fmt == ImageFormat::Avif) ? "avif" : "jpg";
+
+    previewTmpPath_ = QString("/dev/shm/visu_preview_%1_%2.%3")
+            .arg(QCoreApplication::applicationPid())
+            .arg(QDateTime::currentMSecsSinceEpoch())
+            .arg(ext);
+
+    QString tmpPath = previewTmpPath_; // lokalna kopia do lambdy
+
+    auto future = QtConcurrent::run([src, fmt, quality, tmpPath]() -> bool {
+        std::string tmp = tmpPath.toStdString();
+        bool ok = false;
+        std::vector<int> params;
+
+        if (fmt == ImageFormat::Jpeg) {
+            params = { cv::IMWRITE_JPEG_QUALITY, quality };
+            ok = cv::imwrite(tmp, src, params);
+        } else if (fmt == ImageFormat::Webp) {
+            params = { cv::IMWRITE_WEBP_QUALITY, quality };
+            ok = cv::imwrite(tmp, src, params);
+        } else if (fmt == ImageFormat::Avif) {
+            ok = imwriteAvif(tmp, src, quality);
+        } else {
+            ok = false;
+        }
+
+        return ok;
+    });
+
+    previewWatcher_->setFuture(future);
+}
+
+void MainWindow::onPreviewJobFinished()
+{
+    previewJobRunning_ = false;
+    bool ok = previewWatcher_->result();
 
     if (!ok) {
-        // fallback: show originał
-        imageWidget_->setImage(originalMat_);
+        // nie udało się zakodować → wróć do oryginału
         previewMat_.release();
+        imageWidget_->setImage(originalMat_);
         if (saveAsDlg_) {
-            saveAsDlg_->setFileSizeInfo(0, 0.0);
+            saveAsDlg_->clearFileSizeInfo();
         }
-        return;
+    } else {
+        // sukces – wczytanie tmp i odrysowanie
+        cv::Mat preview = loadAnyImage(previewTmpPath_);
+        if (preview.empty()) {
+            previewMat_.release();
+            imageWidget_->setImage(originalMat_);
+            if (saveAsDlg_) {
+                saveAsDlg_->clearFileSizeInfo();
+            }
+        } else {
+            previewMat_ = preview;
+            imageWidget_->setImage(previewMat_);
+
+            // oblicz rozmiar i ratio
+            QFileInfo fi(previewTmpPath_);
+            qint64 bytes = fi.size();
+
+            int w = originalMat_.cols;
+            int h = originalMat_.rows;
+            int c = originalMat_.channels();
+            double rawSize = double(w) * h * c;
+            double ratio = (rawSize > 0.0 && bytes > 0)
+                           ? (rawSize / double(bytes))
+                           : 0.0;
+
+            if (saveAsDlg_) {
+                saveAsDlg_->setFileSizeInfo(bytes, ratio);
+            }
+        }
     }
 
-    QFileInfo fi(tmpPath);
-    qint64 bytes = fi.size();
-
-    // w*h* channels (assume BGR 8-bit)
-    int w = originalMat_.cols;
-    int h = originalMat_.rows;
-    int c = originalMat_.channels();
-    double rawSize = double(w) * double(h) * double(c);
-    double ratio = (rawSize > 0.0) ? (rawSize / double(bytes)) : 0.0;
-
-    if (saveAsDlg_) {
-        saveAsDlg_->setFileSizeInfo(bytes, ratio);
+    // usuwamy plik tymczasowy
+    if (!previewTmpPath_.isEmpty()) {
+        QFile::remove(previewTmpPath_);
+        previewTmpPath_.clear();
     }
 
-    // load preview and switch view
-    previewMat_ = loadAnyImage(tmpPath);
-
-    if (saveAsDlg_) {
-        saveAsDlg_->setFileSizeInfo(bytes, ratio);  // after loading the preview – show
+    // jeśli mamy oczekujące żądanie – startujemy nowe
+    if (pendingRequest_) {
+        SaveAsRequest next = *pendingRequest_;
+        pendingRequest_.reset();
+        startPreviewJob(next);
     }
 
-    imageWidget_->setImage(previewMat_);
-    imageWidget_->repaint();
+
 }
+
 
 void MainWindow::onSaveAsAccepted(ImageFormat fmt, int quality, bool showOriginal)
 {
@@ -1561,4 +1632,20 @@ bool MainWindow::saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& 
     }
 
     return ok;
+}
+
+void MainWindow::closeSaveAsDialog()
+{
+    pendingRequest_.reset();
+    if (previewJobRunning_) {
+        // opcjonalnie: można poczekać, ale zazwyczaj po prostu zostawić job,
+        // a tylko przestać pokazywać dialog; tmp i tak usuwamy w onPreviewJobFinished.
+    }
+    if (!previewTmpPath_.isEmpty()) {
+        QFile::remove(previewTmpPath_);
+        previewTmpPath_.clear();
+    }
+    if (saveAsDlg_) {
+        saveAsDlg_->close();
+    }
 }

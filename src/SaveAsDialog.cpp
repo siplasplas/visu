@@ -196,3 +196,9 @@ void SaveAsDialog::onSaveClicked()
 {
     emit acceptedSave(selectedFormat(), quality(), showOriginalChecked());
 }
+
+void SaveAsDialog::closeEvent(QCloseEvent* e)
+{
+    emit dialogClosed();
+    QDialog::closeEvent(e);
+}

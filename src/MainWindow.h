@@ -8,6 +8,9 @@
 #include <QStackedWidget>
 #include <QDateTime>
 #include <QCloseEvent>
+#include <QFutureWatcher>
+#include <QtConcurrent/QtConcurrent>
+#include <optional>
 
 #include <opencv2/opencv.hpp>
 
@@ -18,6 +21,12 @@ class ImageWidget;
 class DoubleThresholdDialog;
 class ShadowCompressionDialog;
 class BrowserWidget;
+
+struct SaveAsRequest {
+    ImageFormat format;
+    int quality;
+    bool showOriginal;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -32,7 +41,7 @@ private slots:
     void switchToSingleMode();
     void onThumbnailActivated(const QString& filePath);
     void onShowOriginalClicked();
-
+    void onPreviewJobFinished();
 
 protected:
     void keyPressEvent(QKeyEvent* event) override;
@@ -106,7 +115,7 @@ private:
     void openSaveAsDialog();
 
     void onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool showOriginal);
-
+    void startPreviewJob(const SaveAsRequest& req);
     void onSaveAsAccepted(ImageFormat fmt, int quality, bool showOriginal);
 
     QDateTime originalFileTime_;       // czas pliku przy wczytaniu
@@ -124,6 +133,13 @@ private:
     QString previewTempPath_;
     bool saveLossless(const QString& path, ImageFormat fmt, const cv::Mat& mat);
     bool saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& mat, int quality);
+
+    void closeSaveAsDialog();
+
+    QFutureWatcher<bool>* previewWatcher_ = nullptr;
+    bool previewJobRunning_ = false;
+    std::optional<SaveAsRequest> pendingRequest_;
+    QString previewTmpPath_;
 };
 
 #endif // MAINWINDOW_H

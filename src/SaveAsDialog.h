@@ -29,6 +29,7 @@ public:
 signals:
     void previewRequested(ImageFormat format, int quality, bool showOriginal);
     void acceptedSave(ImageFormat format, int quality, bool showOriginal);
+    void dialogClosed();
 public slots:
     void onFormatChanged(int index);
     void onQualitySliderChanged(int value);
@@ -36,7 +37,7 @@ public slots:
     void onShowOriginalToggled(bool);
     void onApplyClicked();
     void onSaveClicked();
-
+    void closeEvent(QCloseEvent *e);
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
