@@ -258,7 +258,7 @@ void MainWindow::loadImageAt(int index)
     isCurrentFileJpeg_   = (ext == "jpg" || ext == "jpeg");
     pendingJpegRotSteps_ = 0;
     currentMat_  = img.clone();
-    imageWidget_->setImage(currentMat_);
+    imageWidget_->setImage(currentMat_, true);
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)
@@ -519,7 +519,7 @@ void MainWindow::moveCurrentImage()
         currentIndex_ = -1;
         originalMat_.release();
         currentMat_.release();
-        imageWidget_->setImage(cv::Mat());
+        imageWidget_->setImage(cv::Mat(), true);
         setWindowTitle("visu - (no images)");
         updateIndexLabel();
         onPixelInfoChanged(-1, -1, -1, -1, -1);
@@ -539,31 +539,31 @@ void MainWindow::openDoubleThresholdDialog()
 
     auto* dlg = new DoubleThresholdDialog(this);
 
-    // PREVIEW – używa kolorów zależnie od checkboxów
+    // PREVIEW – uses colors depending on checkboxes
     connect(dlg, &DoubleThresholdDialog::previewRequested,
             this, [this](int low, int high, bool lowColor, bool highColor) {
                 cv::Mat preview = applyDoubleThresholdPreview(originalMat_, low, high,
                                                               lowColor, highColor);
                 currentMat_ = preview.clone();
-                imageWidget_->setImage(currentMat_);
+                imageWidget_->setImage(currentMat_, false);
             });
 
     connect(dlg, &QDialog::accepted,
         this, [this, dlg]() {
 
-            // 1) Wczytujemy spinboxy
+            // 1) Loading spinboxes
             int low  = dlg->low();
             int high = dlg->high();
 
             if (!dlg->lowApplyChecked())  low  = 0;
             if (!dlg->highApplyChecked()) high = 255;
 
-            // 3) Kolorów NIE bierzemy pod uwagę → BW
+            // 3) We do NOT take colors into account → BW
             cv::Mat result = applyDoubleThresholdBW(originalMat_, low, high);
 
             originalMat_ = result.clone();
             currentMat_  = originalMat_.clone();
-            imageWidget_->setImage(currentMat_);
+            imageWidget_->setImage(currentMat_, false);
 
             imageDirty_ = true;
             safeOnlyDirty_ = false;
@@ -583,7 +583,7 @@ void MainWindow::openDoubleThresholdDialog()
             this, [this, dlg]() {
                 if (!originalMat_.empty()) {
                     currentMat_ = originalMat_.clone();
-                    imageWidget_->setImage(currentMat_);
+                    imageWidget_->setImage(currentMat_, false);
                 }
                 dlg->close();
             });
@@ -700,7 +700,7 @@ void MainWindow::openDirectory()
         currentIndex_ = -1;
         originalMat_.release();
         currentMat_.release();
-        imageWidget_->setImage(cv::Mat());
+        imageWidget_->setImage(cv::Mat(), true);
         setWindowTitle("visu - (no images)");
         updateIndexLabel();
         onPixelInfoChanged(-1, -1, -1, -1, -1);
@@ -748,7 +748,7 @@ void MainWindow::openFile()
         currentIndex_ = -1;
         originalMat_.release();
         currentMat_.release();
-        imageWidget_->setImage(cv::Mat());
+        imageWidget_->setImage(cv::Mat(), true);
         setWindowTitle("visu - (no images)");
         updateIndexLabel();
         onPixelInfoChanged(-1, -1, -1, -1, -1);
@@ -848,7 +848,7 @@ void MainWindow::openShadowCompressionDialog()
             this, [this](int T, double gamma, int maxOut) {
                 cv::Mat preview = applyShadowCompression(originalMat_, T, gamma, maxOut);
                 currentMat_ = preview.clone();
-                imageWidget_->setImage(currentMat_);
+                imageWidget_->setImage(currentMat_, false);
             });
 
     connect(dlg, &ShadowCompressionDialog::requestTFromHistogram,
@@ -868,7 +868,7 @@ void MainWindow::openShadowCompressionDialog()
 
             originalMat_ = result.clone();
             currentMat_  = originalMat_.clone();
-            imageWidget_->setImage(currentMat_);
+            imageWidget_->setImage(currentMat_,false);
 
             imageDirty_ = true;
             safeOnlyDirty_ = false;
@@ -888,7 +888,7 @@ void MainWindow::openShadowCompressionDialog()
             this, [this, dlg]() {
                 if (!originalMat_.empty()) {
                     currentMat_ = originalMat_.clone();
-                    imageWidget_->setImage(currentMat_);
+                    imageWidget_->setImage(currentMat_, false);
                 }
                 dlg->close();
             });
@@ -1038,7 +1038,7 @@ void MainWindow::revertCurrentImage()
     safeOnlyDirty_ = true;
     pendingJpegRotSteps_ = 0;
     currentMat_  = img.clone();
-    imageWidget_->setImage(currentMat_);
+    imageWidget_->setImage(currentMat_, false);
 
     imageDirty_ = false;
 
@@ -1190,7 +1190,7 @@ void MainWindow::rotateCurrentImageLeft()
 
     originalMat_ = rotated.clone();
     currentMat_  = rotated.clone();
-    imageWidget_->setImage(currentMat_);
+    imageWidget_->setImage(currentMat_, true);
 
     if (isCurrentFileJpeg_) {
         // +90°
@@ -1228,7 +1228,7 @@ void MainWindow::rotateCurrentImageRight()
 
     originalMat_ = rotated.clone();
     currentMat_  = rotated.clone();
-    imageWidget_->setImage(currentMat_);
+    imageWidget_->setImage(currentMat_, true);
 
     if (isCurrentFileJpeg_) {
         // +90°
@@ -1306,7 +1306,7 @@ bool MainWindow::applyPendingJpegRotationOnDisk(bool restoreTimestamp)
 
     originalMat_ = reloaded.clone();
     currentMat_  = reloaded.clone();
-    imageWidget_->setImage(currentMat_);
+    imageWidget_->setImage(currentMat_, true);
 
     imageDirty_    = false;
     safeOnlyDirty_ = true;
@@ -1345,7 +1345,7 @@ void MainWindow::openSaveAsDialog()
 
 void MainWindow::onShowOriginalClicked() {
     if (saveAsDlg_->showOriginalCheck_->isChecked()) {
-        imageWidget_->setImage(originalMat_);
+        imageWidget_->setImage(originalMat_, false);
         saveAsDlg_->clearFileSizeInfo();
     } else {
         saveAsDlg_->onShowOriginalToggled(false);
@@ -1365,12 +1365,12 @@ void MainWindow::onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool sho
         if (!previewJobRunning_) {
             saveAsDlg_->clearFileSizeInfo();
             previewMat_.release();
-            imageWidget_->setImage(originalMat_);
+            imageWidget_->setImage(originalMat_, false);
         }
         return;
     }
 
-    // 2. Format bezstratny (PNG/BMP/TIFF) – nie ma sensu robić preview kompresji
+    // 2. Lossless format (PNG/BMP/TIFF) – there is no point in doing compression previews
     if (!isAlwaysLossyFormat(fmt) &&
         fmt != ImageFormat::Webp &&
         fmt != ImageFormat::Avif)
@@ -1378,17 +1378,17 @@ void MainWindow::onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool sho
         pendingRequest_.reset();
         saveAsDlg_->clearFileSizeInfo();
         previewMat_.release();
-        imageWidget_->setImage(originalMat_);
+        imageWidget_->setImage(originalMat_, false);
         return;
     }
 
-    // 3. Jeśli job już działa → tylko zapisz jako pending, nie odpalaj nowego
+    // 3. If the job is already running → just save it as pending, don't start a new one
     if (previewJobRunning_) {
         pendingRequest_ = req;
         return;
     }
 
-    // 4. Job nie działa → startujemy nowy
+    // 4. Job not working → start a new one
     startPreviewJob(req);
 }
 
@@ -1446,7 +1446,7 @@ void MainWindow::onPreviewJobFinished()
     if (!ok) {
         // nie udało się zakodować → wróć do oryginału
         previewMat_.release();
-        imageWidget_->setImage(originalMat_);
+        imageWidget_->setImage(originalMat_, false);
         if (saveAsDlg_) {
             saveAsDlg_->clearFileSizeInfo();
         }
@@ -1455,13 +1455,13 @@ void MainWindow::onPreviewJobFinished()
         cv::Mat preview = loadAnyImage(previewTmpPath_);
         if (preview.empty()) {
             previewMat_.release();
-            imageWidget_->setImage(originalMat_);
+            imageWidget_->setImage(originalMat_, false);
             if (saveAsDlg_) {
                 saveAsDlg_->clearFileSizeInfo();
             }
         } else {
             previewMat_ = preview;
-            imageWidget_->setImage(previewMat_);
+            imageWidget_->setImage(previewMat_, false);
 
             // oblicz rozmiar i ratio
             QFileInfo fi(previewTmpPath_);

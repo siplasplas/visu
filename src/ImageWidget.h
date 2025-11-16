@@ -12,7 +12,12 @@ class ImageWidget : public QWidget
 public:
     explicit ImageWidget(QWidget* parent = nullptr);
 
-    void setImage(const cv::Mat& mat);
+    void resetViewToFit();
+
+    // resetView = true → behavior as before (autofit, etc.)
+    // resetView = false → retains current zoom/pan if image size is the same
+    void setImage(const cv::Mat& mat, bool resetView);
+
     const cv::Mat& imageMat() const { return imageMat_; }
 
     void resetZoom();

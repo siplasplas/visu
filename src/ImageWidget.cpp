@@ -37,17 +37,40 @@ ImageWidget::ImageWidget(QWidget* parent)
     setMouseTracking(true);
 }
 
-void ImageWidget::setImage(const cv::Mat& mat)
-{
-    imageMat_ = mat.clone();
-    qimage_ = matToQImage(imageMat_);
 
+void ImageWidget::resetViewToFit()
+{
     zoomMode_    = ZoomMode::AutoFit;
     scaleFactor_ = 1.0;
-
     panOffset_   = QPoint(0, 0);
     panning_     = false;
+}
 
+void ImageWidget::setImage(const cv::Mat& mat, bool resetView)
+{
+    if (mat.empty()) {
+        qimage_ = QImage();
+        // here you can reset the view completely
+        resetViewToFit();
+        update();
+        return;
+    }
+
+    // conversion cv::Mat -> QImage
+    QImage newImg = matToQImage(mat);
+
+    // we check if the size is the same as before
+    bool sameSize = !qimage_.isNull() && (qimage_.size() == newImg.size());
+
+    qimage_ = std::move(newImg);
+
+    // If they ask to reset the view OR the size has changed → we reset it
+    if (resetView || !sameSize) {
+        resetViewToFit();   // here you have your autofit logic / mode 1
+    }
+    // Otherwise:
+    // - Do NOT change the current scale_, offset, zoom mode
+    // - paintEvent will use the same parameters, only with a different image
     update();
 }
 
