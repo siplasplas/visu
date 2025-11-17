@@ -431,7 +431,7 @@ std::string formatMetricResult(MetricType type, double value)
             std::snprintf(buf, sizeof(buf), "GMSD: %.6f (lower is better)", value);
             return buf;
 
-            case MetricType::None:
+        case MetricType::None:
         default:
             return "Metric: None";
     }

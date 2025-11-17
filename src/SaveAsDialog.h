@@ -38,8 +38,13 @@ signals:
     void previewRequested(ImageFormat format, int quality, bool showOriginal);
     void acceptedSave(ImageFormat format, int quality, bool showOriginal);
     void dialogClosed();
+    void metricSelectionChanged();
+    void formatChanged();
 public slots:
     void onFormatChanged(int index);
+
+    void onQualityChanged(int q);
+
     void onQualitySliderChanged(int value);
     void onQualitySpinChanged(int value);
     void onShowOriginalToggled(bool);
@@ -47,6 +52,9 @@ public slots:
     void onSaveClicked();
 
     void onMetricToggled(bool checked);
+
+    void onQualityEditChanged(const QString &text);
+
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
@@ -60,8 +68,20 @@ private:
     QLabel*    metricResultLabel_;
 
     bool isLossyCurrent_ = false;
+    ImageFormat selectedFormat_;   // current format (e.g., Jpeg, Png, Avif)
+    int         currentQuality_;   // current quality (0–100 or according to your scale)
 
     ImageFormat formatFromComboIndex(int index) const;
 };
+
+inline ImageFormat SaveAsDialog::selectedFormat() const
+{
+    return selectedFormat_;
+}
+
+inline int SaveAsDialog::quality() const
+{
+    return currentQuality_;
+}
 
 #endif // SAVEASDIALOG_H

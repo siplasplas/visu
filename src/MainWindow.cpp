@@ -1326,6 +1326,17 @@ void MainWindow::openSaveAsDialog()
         saveAsDlg_ = new SaveAsDialog(this);
         connect(saveAsDlg_, &SaveAsDialog::previewRequested,
                 this, &MainWindow::onSaveAsPreviewRequested);
+        connect(saveAsDlg_, &SaveAsDialog::formatChanged,
+        this,        [this]() {
+            onSaveAsPreviewRequested(
+                saveAsDlg_->selectedFormat(),
+                saveAsDlg_->quality(),
+                saveAsDlg_->showOriginalChecked()
+            );
+        });
+
+        connect(saveAsDlg_, &SaveAsDialog::metricSelectionChanged,
+                this,        &MainWindow::updateSaveAsMetricsOnly);
         connect(saveAsDlg_, &SaveAsDialog::acceptedSave,
                 this, &MainWindow::onSaveAsAccepted);
         if (saveAsDlg_->showOriginalCheck_) {
@@ -1334,7 +1345,14 @@ void MainWindow::openSaveAsDialog()
         connect(saveAsDlg_, &SaveAsDialog::dialogClosed,
             this, &MainWindow::closeSaveAsDialog);
         }
-
+        connect(saveAsDlg_, &SaveAsDialog::metricSelectionChanged,
+            this,        &MainWindow::updateSaveAsMetricsOnly);
+        connect(saveAsDlg_, &SaveAsDialog::formatChanged,
+        this, [this]() {
+            emit saveAsDlg_->previewRequested(saveAsDlg_->selectedFormat(),
+                                              saveAsDlg_->quality(),
+                                              saveAsDlg_->showOriginalChecked());
+        });
     }
 
     saveAsDlg_->show();
@@ -1481,33 +1499,11 @@ void MainWindow::onPreviewJobFinished()
                 saveAsDlg_->setFileSizeInfo(bytes, ratio);
                 saveAsDlg_->clearMetricInfo();
                 MetricType metric = saveAsDlg_->selectedMetric();
+
                 if (metric != MetricType::None) {
-                    double value = 0.0;
-                    QString text;
-
-                    try {
-                        if (metric == MetricType::PSNR) {
-                            value = computePsnr(originalMat_, previewMat_);
-                            if (std::isinf(value))
-                                text = tr("PSNR: ∞ (identical)");
-                            else
-                                text = tr("PSNR: %1 dB").arg(value, 0, 'f', 2);
-                        } else if (metric == MetricType::SSIM) {
-                            value = computeSsim(originalMat_, previewMat_);
-                            text = tr("SSIM: %1").arg(value, 0, 'f', 4);
-                        } else if (metric == MetricType::MS_SSIM) {
-                            value = computeMsSsim(originalMat_, previewMat_);
-                            text = tr("MS-SSIM: %1").arg(value, 0, 'f', 4);
-                        } else if (metric == MetricType::FSIM) {
-                            value = computeFsim(originalMat_, previewMat_);
-                            text = tr("FSIM: %1").arg(value, 0, 'f', 4);
-                        }
-                    } catch (...) {
-                        // just in case – don't kill the program if you encounter problems with the metric
-                        text = tr("Metric error");
-                    }
-
-                    saveAsDlg_->setMetricInfo(text);
+                    double value = computeMetric(metric, originalMat_, previewMat_);
+                    std::string s = formatMetricResult(metric, value);
+                    saveAsDlg_->setMetricInfo(QString::fromStdString(s));
                 }
             }
         }
@@ -1680,4 +1676,37 @@ void MainWindow::closeSaveAsDialog()
     if (saveAsDlg_) {
         saveAsDlg_->close();
     }
+}
+
+void MainWindow::updateSaveAsMetricsOnly()
+{
+    if (!saveAsDlg_)
+        return;
+    if (originalMat_.empty())
+        return;
+
+    saveAsDlg_->clearMetricInfo();
+
+    MetricType metric = saveAsDlg_->selectedMetric();
+    if (metric == MetricType::None)
+        return;
+
+    // Wybór obrazów: referencją jest zawsze oryginał,
+    // testem – aktualny preview, jeśli istnieje i NIE pokazujemy oryginału.
+    const cv::Mat* ref  = &originalMat_;
+    const cv::Mat* test = nullptr;
+
+    bool showOriginal = saveAsDlg_->showOriginalChecked();
+    if (!previewMat_.empty() && !showOriginal) {
+        test = &previewMat_;     // skompresowana wersja
+    } else {
+        test = &originalMat_;    // porównanie oryginał do oryginału → ideał
+    }
+
+    if (test->empty())
+        return;
+
+    double value = computeMetric(metric, *ref, *test);
+    std::string s = formatMetricResult(metric, value);
+    saveAsDlg_->setMetricInfo(QString::fromStdString(s));
 }

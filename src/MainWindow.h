@@ -43,20 +43,15 @@ private slots:
     void onThumbnailActivated(const QString& filePath);
     void onShowOriginalClicked();
     void onPreviewJobFinished();
-
+    void updateSaveAsMetricsOnly();
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
-
 private:
     void initUi();
-
     void updateActionsForMode();
-
     void scanDirectory(const QString& directory, const QString& startFilePath);
-
     cv::Mat loadAnyImage(const QString &path);
-
     bool isImageFile(const QString& filePath) const;
     void loadImageAt(int index);
     void updateIndexLabel();

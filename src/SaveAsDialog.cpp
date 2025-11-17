@@ -44,12 +44,19 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     qualitySpin_->setRange(0, 100);
     qualitySpin_->setValue(90);
 
+    int idx = formatCombo_->currentIndex();
+    selectedFormat_ = formatFromComboIndex(idx);
+
+    currentQuality_ = qualitySlider_->value();
+
     auto* qualityLayout = new QHBoxLayout;
     qualityLayout->addWidget(new QLabel(tr("Quality:"), this));
     qualityLayout->addWidget(qualitySlider_);
     qualityLayout->addWidget(qualitySpin_);
     mainLayout->addLayout(qualityLayout);
 
+    connect(formatCombo_,  qOverload<int>(&QComboBox::currentIndexChanged),
+           this,          &SaveAsDialog::onFormatChanged);
     connect(qualitySlider_, &QSlider::valueChanged,
             this, &SaveAsDialog::onQualitySliderChanged);
     connect(qualitySpin_, &QSpinBox::valueChanged,
@@ -141,16 +148,6 @@ int SaveAsDialog::formatToComboIndex(ImageFormat fmt) const
     }
 }
 
-ImageFormat SaveAsDialog::selectedFormat() const
-{
-    return formatFromComboIndex(formatCombo_->currentIndex());
-}
-
-int SaveAsDialog::quality() const
-{
-    return qualitySlider_->value();
-}
-
 bool SaveAsDialog::showOriginalChecked() const
 {
     return showOriginalCheck_->isChecked();
@@ -182,27 +179,37 @@ void SaveAsDialog::clearFileSizeInfo()
 
 void SaveAsDialog::onFormatChanged(int index)
 {
-    ImageFormat fmt = formatFromComboIndex(index);
-    bool lossy = isAlwaysLossyFormat(fmt)
-                 || (fmt == ImageFormat::Webp)
-                 || (fmt == ImageFormat::Avif);
-    // You can add your logic here: WebP/AVIF – treat as "lossy compression
-    // in this Save As mode."
-    setLossy(lossy);
+    selectedFormat_ = formatFromComboIndex(index);
+    clearFileSizeInfo();
+    clearMetricInfo();
+    // Format change → full preview (compression + decompression)
+    emit formatChanged();
+}
+
+void SaveAsDialog::onQualityChanged(int q)
+{
+    currentQuality_ = q;
+    emit formatChanged();     // NEW
+}
+
+
+void SaveAsDialog::onQualitySliderChanged(int value)
+{
+    if (currentQuality_ == value)
+        return;
+
+    currentQuality_ = value;
+
+    if (qualitySpin_->value() != value) {
+        qualitySpin_->blockSignals(true);
+        qualitySpin_->setValue(value);
+        qualitySpin_->blockSignals(false);
+    }
 
     clearFileSizeInfo();
     clearMetricInfo();
 
-    // After changing the format, it is worth forcing a refresh of the preview:
-    emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
-}
-
-void SaveAsDialog::onQualitySliderChanged(int value)
-{
-    if (qualitySpin_->value() != value)
-        qualitySpin_->setValue(value);
-    if (isLossyCurrent_)
-        emit previewRequested(selectedFormat(), value, showOriginalChecked());
+    emit formatChanged();  // quality change → also full preview
 }
 
 void SaveAsDialog::onQualitySpinChanged(int value)
@@ -254,15 +261,12 @@ void SaveAsDialog::clearMetricInfo()
     metricResultLabel_->setVisible(false);
 }
 
-
 void SaveAsDialog::onMetricToggled(bool checked)
 {
-    // Determine which checkbox triggered the slot
     auto* senderChk = qobject_cast<QCheckBox*>(sender());
     if (!senderChk)
         return;
 
-    // find index
     int idx = -1;
     for (int i = 0; i < metricChecks_.size(); ++i) {
         if (metricChecks_[i] == senderChk) {
@@ -274,7 +278,7 @@ void SaveAsDialog::onMetricToggled(bool checked)
         return;
 
     if (checked) {
-        // one metric enabled → disable all others
+        // wyłącz wszystkie inne
         for (int i = 0; i < metricChecks_.size(); ++i) {
             if (i == idx) continue;
             metricChecks_[i]->blockSignals(true);
@@ -283,7 +287,6 @@ void SaveAsDialog::onMetricToggled(bool checked)
         }
         selectedMetric_ = metricTypes_[idx];
     } else {
-        // this checkbox unchecked → if no other is checked, we have None
         bool anyChecked = false;
         for (auto* chk : metricChecks_) {
             if (chk->isChecked()) {
@@ -297,6 +300,33 @@ void SaveAsDialog::onMetricToggled(bool checked)
 
     clearMetricInfo();
 
-    // immediately refresh the preview with the new metric
-    emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
+    // TYLKO przeliczyć metryki na aktualnych mat, bez kompresji:
+    emit metricSelectionChanged();
 }
+
+void SaveAsDialog::onQualityEditChanged(const QString& text)
+{
+    bool ok = false;
+    int val = text.toInt(&ok);
+    if (!ok)
+        return;
+
+    val = std::clamp(val, qualitySlider_->minimum(), qualitySlider_->maximum());
+
+    if (currentQuality_ == val)
+        return;
+
+    currentQuality_ = val;
+
+    if (qualitySlider_->value() != val) {
+        qualitySlider_->blockSignals(true);
+        qualitySlider_->setValue(val);
+        qualitySlider_->blockSignals(false);
+    }
+
+    clearFileSizeInfo();
+    clearMetricInfo();
+
+    emit formatChanged();
+}
+
