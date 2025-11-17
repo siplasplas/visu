@@ -1495,6 +1495,9 @@ void MainWindow::onPreviewJobFinished()
                         } else if (metric == MetricType::SSIM) {
                             value = computeSsim(originalMat_, previewMat_);
                             text = tr("SSIM: %1").arg(value, 0, 'f', 4);
+                        } else if (metric == MetricType::MS_SSIM) {
+                            value = computeMsSsim(originalMat_, previewMat_);
+                            text = tr("MS-SSIM: %1").arg(value, 0, 'f', 4);
                         }
                     } catch (...) {
                         // just in case – don't kill the program if you encounter problems with the metric

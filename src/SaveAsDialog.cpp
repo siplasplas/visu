@@ -64,9 +64,12 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     auto* metricsLayout = new QHBoxLayout;
     metricPsnrCheck_ = new QCheckBox(tr("PSNR"), this);
     metricSsimCheck_ = new QCheckBox(tr("SSIM"), this);
+    metricMsSsimCheck_  = new QCheckBox(tr("MS-SSIM"), this);
+
     metricsLayout->addWidget(new QLabel(tr("Metrics:"), this));
     metricsLayout->addWidget(metricPsnrCheck_);
     metricsLayout->addWidget(metricSsimCheck_);
+    metricsLayout->addWidget(metricMsSsimCheck_);
     metricsLayout->addStretch();
     mainLayout->addLayout(metricsLayout);
 
@@ -78,6 +81,8 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
             this, &SaveAsDialog::onMetricPsnrToggled);
     connect(metricSsimCheck_, &QCheckBox::toggled,
             this, &SaveAsDialog::onMetricSsimToggled);
+    connect(metricMsSsimCheck_, &QCheckBox::toggled,
+        this, &SaveAsDialog::onMetricMsSsimToggled);
 
     auto* btnLayout = new QHBoxLayout;
     auto* applyBtn = new QPushButton(tr("Preview"), this);
@@ -245,18 +250,20 @@ void SaveAsDialog::clearMetricInfo()
 void SaveAsDialog::onMetricPsnrToggled(bool checked)
 {
     if (checked) {
-        // wyłącz SSIM, ustaw PSNR
         metricSsimCheck_->blockSignals(true);
         metricSsimCheck_->setChecked(false);
         metricSsimCheck_->blockSignals(false);
+
+        metricMsSsimCheck_->blockSignals(true);
+        metricMsSsimCheck_->setChecked(false);
+        metricMsSsimCheck_->blockSignals(false);
+
         selectedMetric_ = MetricType::PSNR;
     } else {
-        // odznaczony → jeśli drugi nie jest zaznaczony, mamy None
-        if (!metricSsimCheck_->isChecked())
+        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked())
             selectedMetric_ = MetricType::None;
     }
     clearMetricInfo();
-    // nie wywołuję tutaj preview – i tak poleci przy zmianie jakości/formatu
 }
 
 void SaveAsDialog::onMetricSsimToggled(bool checked)
@@ -265,9 +272,33 @@ void SaveAsDialog::onMetricSsimToggled(bool checked)
         metricPsnrCheck_->blockSignals(true);
         metricPsnrCheck_->setChecked(false);
         metricPsnrCheck_->blockSignals(false);
+
+        metricMsSsimCheck_->blockSignals(true);
+        metricMsSsimCheck_->setChecked(false);
+        metricMsSsimCheck_->blockSignals(false);
+
         selectedMetric_ = MetricType::SSIM;
     } else {
-        if (!metricPsnrCheck_->isChecked())
+        if (!metricPsnrCheck_->isChecked() && !metricMsSsimCheck_->isChecked())
+            selectedMetric_ = MetricType::None;
+    }
+    clearMetricInfo();
+}
+
+void SaveAsDialog::onMetricMsSsimToggled(bool checked)
+{
+    if (checked) {
+        metricPsnrCheck_->blockSignals(true);
+        metricPsnrCheck_->setChecked(false);
+        metricPsnrCheck_->blockSignals(false);
+
+        metricSsimCheck_->blockSignals(true);
+        metricSsimCheck_->setChecked(false);
+        metricSsimCheck_->blockSignals(false);
+
+        selectedMetric_ = MetricType::MS_SSIM;
+    } else {
+        if (!metricPsnrCheck_->isChecked() && !metricSsimCheck_->isChecked())
             selectedMetric_ = MetricType::None;
     }
     clearMetricInfo();

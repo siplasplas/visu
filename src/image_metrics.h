@@ -49,12 +49,18 @@
 
 #include <opencv2/core.hpp>
 
-// PSNR (Peak Signal-to-Noise Ratio), w dB.
-// Zwraca +inf, jeśli obrazy są identyczne.
+// PSNR (Peak Signal-to-Noise Ratio), in dB.
+// Returns +inf if the images are identical.
 double computePsnr(const cv::Mat& ref, const cv::Mat& test);
 
-// SSIM (Structural Similarity Index), jednoskalowe, 0..1.
-// Obrazy mogą być szare albo BGR; jeśli BGR, metryka liczona jest na konwersji do gray.
+// SSIM (Structural Similarity Index), single-scale, 0..1.
+// Images can be grayscale or BGR; if BGR, the metric is calculated on conversion to grayscale.
 double computeSsim(const cv::Mat& ref, const cv::Mat& test);
 
+// MS-SSIM (Multi-Scale Structural Similarity Index), 0..1.
+// Uses a classical 5-scale formulation with Wang et al. weights by default.
+// 'levels' should be in [1,5]; values >5 are clamped to 5.
+double computeMsSsim(const cv::Mat& ref, const cv::Mat& test, int levels = 5);
 #endif // IMAGE_METRICS_H
+
+
