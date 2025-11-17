@@ -4,6 +4,13 @@
 // This module provides implementations of the two most common classical
 // image quality metrics used in compression evaluation:
 //
+// Short:
+// - PSNR (simplest, linear),
+// - SSIM (local structure),
+// - MS-SSIM (multiscale SSIM)
+// - FSIM-like (gradient + phase),
+// - GMSD  (gradient similarity deviation, fast & sensitive)
+// Detailed :
 // - PSNR (Peak Signal-to-Noise Ratio):
 //     A simple error-based metric derived from MSE.
 //     Fast to compute and widely used as a baseline.
@@ -38,6 +45,21 @@
 //     Very strong agreement with human perception.
 //     Computationally expensive; GPU acceleration recommended.
 //
+// Gradient Magnitude Similarity Deviation (GMSD).
+//
+// A fast and high-performing full-reference perceptual metric.
+// GMSD computes the gradient magnitude similarity map (GMS)
+// and then the standard deviation of the similarity map.
+// Lower is better: 0 means identical images.
+// Typical range: 0.0 – 0.2 (light distortions), larger values for strong artifacts.
+//
+// Reference:
+//   W. Xue, L. Zhang, X. Mou, and A. Bovik,
+//   "Gradient Magnitude Similarity Deviation: A Highly Efficient
+//    Perceptual Image Quality Index", IEEE TIP 2014.
+//
+// This metric is significantly faster than SSIM/MS-SSIM and
+// more sensitive than PSNR. Suitable for real-time preview.
 // All metrics require reference and test images of the same size and type.
 //
 // This module is Qt-independent and can be used in GUI applications
@@ -57,6 +79,7 @@ enum class MetricType {
     SSIM,
     MS_SSIM,
     FSIM,
+    GMSD,
 };
 
 struct MetricDef {

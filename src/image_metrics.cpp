@@ -316,6 +316,51 @@ double computeFsim(const cv::Mat& ref, const cv::Mat& test)
     return fsim;
 }
 
+double computeGmsd(const cv::Mat& ref, const cv::Mat& test)
+{
+    CV_Assert(!ref.empty());
+    CV_Assert(ref.size() == test.size());
+    CV_Assert(ref.type() == test.type());
+
+    cv::Mat I1, I2;
+    if (ref.channels() == 3) {
+        cv::cvtColor(ref, I1, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(test, I2, cv::COLOR_BGR2GRAY);
+    } else {
+        I1 = ref.clone();
+        I2 = test.clone();
+    }
+
+    I1.convertTo(I1, CV_32F);
+    I2.convertTo(I2, CV_32F);
+
+    // Sobel gradient magnitude
+    cv::Mat gx1, gy1, gx2, gy2;
+    cv::Sobel(I1, gx1, CV_32F, 1, 0, 3);
+    cv::Sobel(I1, gy1, CV_32F, 0, 1, 3);
+    cv::Sobel(I2, gx2, CV_32F, 1, 0, 3);
+    cv::Sobel(I2, gy2, CV_32F, 0, 1, 3);
+
+    cv::Mat gm1, gm2;
+    cv::magnitude(gx1, gy1, gm1);
+    cv::magnitude(gx2, gy2, gm2);
+
+    // GMS = (2 * m1 * m2 + c) / (m1^2 + m2^2 + c)
+    const float c = 170.0f;  // stabilizing constant from the paper
+
+    cv::Mat numerator  = 2.0f * gm1.mul(gm2) + c;
+    cv::Mat denominator = gm1.mul(gm1) + gm2.mul(gm2) + c;
+
+    cv::Mat gms;
+    cv::divide(numerator, denominator, gms);  // gms in ~[0,1]
+
+    // GMSD = standard deviation of similarity map
+    cv::Scalar mean, stddev;
+    cv::meanStdDev(gms, mean, stddev);
+
+    return static_cast<double>(stddev[0]);
+}
+
 static const std::vector<MetricDef> kMetricDefs = {
     { MetricType::PSNR,    "psnr",    "PSNR",
       "Peak Signal-to-Noise Ratio (dB)" },
@@ -325,6 +370,8 @@ static const std::vector<MetricDef> kMetricDefs = {
       "Multi-scale Structural Similarity Index" },
     { MetricType::FSIM,    "fsim",    "FSIM",
       "Feature-based Similarity Index (approx.)" },
+    { MetricType::GMSD,   "gmsd",   "GMSD",
+      "Gradient Magnitude Similarity Deviation (lower is better)" },
 };
 
 const std::vector<MetricDef>& getAvailableMetrics()
@@ -345,6 +392,8 @@ double computeMetric(MetricType type,
             return computeMsSsim(ref, test);
         case MetricType::FSIM:
             return computeFsim(ref, test);
+        case MetricType::GMSD:
+            return computeGmsd(ref, test);
         case MetricType::None:
         default:
             return std::numeric_limits<double>::quiet_NaN();
@@ -378,7 +427,11 @@ std::string formatMetricResult(MetricType type, double value)
             std::snprintf(buf, sizeof(buf), "FSIM: %.4f", value);
             return buf;
 
-        case MetricType::None:
+        case MetricType::GMSD:
+            std::snprintf(buf, sizeof(buf), "GMSD: %.6f (lower is better)", value);
+            return buf;
+
+            case MetricType::None:
         default:
             return "Metric: None";
     }
