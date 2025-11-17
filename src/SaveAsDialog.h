@@ -13,7 +13,8 @@ enum class MetricType {
     None,
     PSNR,
     SSIM,
-    MS_SSIM
+    MS_SSIM,
+    FSIM
 };
 
 class QSpinBox;
@@ -54,6 +55,7 @@ public slots:
     void onMetricPsnrToggled(bool checked);
     void onMetricSsimToggled(bool checked);
     void onMetricMsSsimToggled(bool checked);
+    void onMetricFsimToggled(bool checked);
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
@@ -63,6 +65,7 @@ private:
     QCheckBox* metricPsnrCheck_;
     QCheckBox* metricSsimCheck_;
     QCheckBox* metricMsSsimCheck_;
+    QCheckBox* metricFsimCheck_;
     QLabel*    metricResultLabel_;
 
     bool isLossyCurrent_ = false;

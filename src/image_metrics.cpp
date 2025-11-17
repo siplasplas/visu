@@ -1,8 +1,42 @@
 #include "image_metrics.h"
 
+#include <opencv2/core.hpp>
+#include <opencv2/core/hal/interface.h>
 #include <opencv2/imgproc.hpp>
 #include <cmath>
 #include <limits>
+
+// element-wise cosine for CV_32F or CV_64F
+static cv::Mat matCos(const cv::Mat& src)
+{
+    CV_Assert(src.type() == CV_32F || src.type() == CV_64F);
+
+    cv::Mat dst(src.size(), src.type());
+
+    int rows = src.rows;
+    int cols = src.cols * src.channels();
+
+    if (src.type() == CV_32F)
+    {
+        for (int y = 0; y < rows; ++y) {
+            const float* s = src.ptr<float>(y);
+            float* d = dst.ptr<float>(y);
+            for (int x = 0; x < cols; ++x)
+                d[x] = std::cos(s[x]);
+        }
+    }
+    else // CV_64F
+    {
+        for (int y = 0; y < rows; ++y) {
+            const double* s = src.ptr<double>(y);
+            double* d = dst.ptr<double>(y);
+            for (int x = 0; x < cols; ++x)
+                d[x] = std::cos(s[x]);
+        }
+    }
+
+    return dst;
+}
 
 double computePsnr(const cv::Mat& ref, const cv::Mat& test)
 {
@@ -199,4 +233,85 @@ double computeMsSsim(const cv::Mat& ref, const cv::Mat& test, int levels)
     msSsim *= std::pow(std::max(mssimL, 0.0), weights[levels - 1]);
 
     return msSsim;
+}
+
+double computeFsim(const cv::Mat& ref, const cv::Mat& test)
+{
+    CV_Assert(!ref.empty());
+    CV_Assert(ref.size() == test.size());
+    CV_Assert(ref.type() == test.type());
+
+    cv::Mat I1, I2;
+    if (ref.channels() == 3) {
+        cv::cvtColor(ref, I1, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(test, I2, cv::COLOR_BGR2GRAY);
+    } else {
+        I1 = ref.clone();
+        I2 = test.clone();
+    }
+
+    I1.convertTo(I1, CV_32F);
+    I2.convertTo(I2, CV_32F);
+
+    // Sobel gradients
+    cv::Mat gx1, gy1, gx2, gy2;
+    cv::Sobel(I1, gx1, CV_32F, 1, 0, 3);
+    cv::Sobel(I1, gy1, CV_32F, 0, 1, 3);
+    cv::Sobel(I2, gx2, CV_32F, 1, 0, 3);
+    cv::Sobel(I2, gy2, CV_32F, 0, 1, 3);
+
+    cv::Mat gm1, gm2, phase1, phase2;
+    cv::magnitude(gx1, gy1, gm1);
+    cv::magnitude(gx2, gy2, gm2);
+
+    cv::phase(gx1, gy1, phase1); // radians
+    cv::phase(gx2, gy2, phase2);
+
+    // Feature importance: max gradient magnitude
+    cv::Mat gmMax;
+    cv::max(gm1, gm2, gmMax);
+
+    // Gradient magnitude similarity (GMS-like)
+    const float T1 = 0.002f;
+    cv::Mat gmsNum  = 2.0f * gm1.mul(gm2) + T1;
+    cv::Mat gmsDen  = gm1.mul(gm1) + gm2.mul(gm2) + T1;
+    cv::Mat gmsMap;
+    cv::divide(gmsNum, gmsDen, gmsMap);
+
+    // Phase similarity (coarse approximation)
+    cv::Mat dphi = phase1 - phase2;
+    cv::Mat cosMap = matCos(dphi);  // in [-1,1]
+
+    // Normalize phase similarity to [0,1]
+    const float T2 = 0.001f;
+    cv::Mat phsNum = 2.0f * cosMap + T2;
+
+    cv::Mat phsDen(phsNum.size(), CV_32F, cv::Scalar(2.0f + T2));
+
+    cv::Mat phsMap;
+    cv::divide(phsNum, phsDen, phsMap); // ~[0,1]
+
+    // Combined similarity map
+    cv::Mat simMap = gmsMap.mul(phsMap);
+
+    // Weighted pooling by feature strength (gmMax)
+    cv::Mat weight = gmMax;
+    cv::Mat weighted;
+    simMap.convertTo(simMap, CV_32F);
+    weight.convertTo(weight, CV_32F);
+    weighted = simMap.mul(weight);
+
+    cv::Scalar num = cv::sum(weighted);
+    cv::Scalar den = cv::sum(weight);
+
+    float numVal = static_cast<float>(num[0]);
+    float denVal = static_cast<float>(den[0]);
+    if (denVal <= 1e-6f)
+        return 1.0; // brak wyróżnionych cech → traktujemy jako identyczne
+
+    float fsim = numVal / denVal;
+    // zabezpieczenie przed numerycznymi śmieciami
+    if (fsim < 0.0f) fsim = 0.0f;
+    if (fsim > 1.0f) fsim = 1.0f;
+    return fsim;
 }

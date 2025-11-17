@@ -65,11 +65,13 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     metricPsnrCheck_ = new QCheckBox(tr("PSNR"), this);
     metricSsimCheck_ = new QCheckBox(tr("SSIM"), this);
     metricMsSsimCheck_  = new QCheckBox(tr("MS-SSIM"), this);
+    metricFsimCheck_    = new QCheckBox(tr("FSIM"), this);
 
     metricsLayout->addWidget(new QLabel(tr("Metrics:"), this));
     metricsLayout->addWidget(metricPsnrCheck_);
     metricsLayout->addWidget(metricSsimCheck_);
     metricsLayout->addWidget(metricMsSsimCheck_);
+    metricsLayout->addWidget(metricFsimCheck_);
     metricsLayout->addStretch();
     mainLayout->addLayout(metricsLayout);
 
@@ -83,6 +85,8 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
             this, &SaveAsDialog::onMetricSsimToggled);
     connect(metricMsSsimCheck_, &QCheckBox::toggled,
         this, &SaveAsDialog::onMetricMsSsimToggled);
+    connect(metricFsimCheck_,   &QCheckBox::toggled,
+        this, &SaveAsDialog::onMetricFsimToggled);
 
     auto* btnLayout = new QHBoxLayout;
     auto* applyBtn = new QPushButton(tr("Preview"), this);
@@ -258,9 +262,14 @@ void SaveAsDialog::onMetricPsnrToggled(bool checked)
         metricMsSsimCheck_->setChecked(false);
         metricMsSsimCheck_->blockSignals(false);
 
+        metricFsimCheck_->blockSignals(true);
+        metricFsimCheck_->setChecked(false);
+        metricFsimCheck_->blockSignals(false);
+
         selectedMetric_ = MetricType::PSNR;
+        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
     } else {
-        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked())
+        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
             selectedMetric_ = MetricType::None;
     }
     clearMetricInfo();
@@ -277,9 +286,14 @@ void SaveAsDialog::onMetricSsimToggled(bool checked)
         metricMsSsimCheck_->setChecked(false);
         metricMsSsimCheck_->blockSignals(false);
 
+        metricFsimCheck_->blockSignals(true);
+        metricFsimCheck_->setChecked(false);
+        metricFsimCheck_->blockSignals(false);
+
         selectedMetric_ = MetricType::SSIM;
+        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
     } else {
-        if (!metricPsnrCheck_->isChecked() && !metricMsSsimCheck_->isChecked())
+        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
             selectedMetric_ = MetricType::None;
     }
     clearMetricInfo();
@@ -296,11 +310,43 @@ void SaveAsDialog::onMetricMsSsimToggled(bool checked)
         metricSsimCheck_->setChecked(false);
         metricSsimCheck_->blockSignals(false);
 
+        metricFsimCheck_->blockSignals(true);
+        metricFsimCheck_->setChecked(false);
+        metricFsimCheck_->blockSignals(false);
+
         selectedMetric_ = MetricType::MS_SSIM;
+        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
     } else {
-        if (!metricPsnrCheck_->isChecked() && !metricSsimCheck_->isChecked())
+        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
             selectedMetric_ = MetricType::None;
     }
     clearMetricInfo();
 }
 
+void SaveAsDialog::onMetricFsimToggled(bool checked)
+{
+    if (checked) {
+        metricPsnrCheck_->blockSignals(true);
+        metricPsnrCheck_->setChecked(false);
+        metricPsnrCheck_->blockSignals(false);
+
+        metricSsimCheck_->blockSignals(true);
+        metricSsimCheck_->setChecked(false);
+        metricSsimCheck_->blockSignals(false);
+
+        metricMsSsimCheck_->blockSignals(true);
+        metricMsSsimCheck_->setChecked(false);
+        metricMsSsimCheck_->blockSignals(false);
+
+        selectedMetric_ = MetricType::FSIM;
+        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
+    } else {
+        if (!metricPsnrCheck_->isChecked() &&
+            !metricSsimCheck_->isChecked() &&
+            !metricMsSsimCheck_->isChecked())
+        {
+            selectedMetric_ = MetricType::None;
+        }
+    }
+    clearMetricInfo();
+}

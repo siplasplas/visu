@@ -61,6 +61,14 @@ double computeSsim(const cv::Mat& ref, const cv::Mat& test);
 // Uses a classical 5-scale formulation with Wang et al. weights by default.
 // 'levels' should be in [1,5]; values >5 are clamped to 5.
 double computeMsSsim(const cv::Mat& ref, const cv::Mat& test, int levels = 5);
+
+// FSIM-like feature similarity index, 0..1.
+// This is a lightweight approximation of the original FSIM metric:
+// it uses gradient magnitude and local phase (from Sobel derivatives)
+// instead of full phase congruency maps. It is less expensive than a
+// full FSIM implementation but still more discriminative than pure SSIM
+// for structural and edge differences.
+double computeFsim(const cv::Mat& ref, const cv::Mat& test);
 #endif // IMAGE_METRICS_H
 
 
