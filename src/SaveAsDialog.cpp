@@ -5,6 +5,8 @@
 #include <QSpinBox>
 #include <QWindow>
 
+#include "image_metrics.h"
+
 SaveAsDialog::SaveAsDialog(QWidget* parent)
     : QDialog(parent)
 {
@@ -62,16 +64,20 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     mainLayout->addWidget(sizeInfoLabel_);
 
     auto* metricsLayout = new QHBoxLayout;
-    metricPsnrCheck_ = new QCheckBox(tr("PSNR"), this);
-    metricSsimCheck_ = new QCheckBox(tr("SSIM"), this);
-    metricMsSsimCheck_  = new QCheckBox(tr("MS-SSIM"), this);
-    metricFsimCheck_    = new QCheckBox(tr("FSIM"), this);
-
     metricsLayout->addWidget(new QLabel(tr("Metrics:"), this));
-    metricsLayout->addWidget(metricPsnrCheck_);
-    metricsLayout->addWidget(metricSsimCheck_);
-    metricsLayout->addWidget(metricMsSsimCheck_);
-    metricsLayout->addWidget(metricFsimCheck_);
+
+    const auto& defs = getAvailableMetrics();
+    for (const auto& def : defs) {
+        auto* chk = new QCheckBox(QString::fromLatin1(def.label), this);
+        metricsLayout->addWidget(chk);
+
+        metricChecks_.push_back(chk);
+        metricTypes_.push_back(def.type);
+
+        connect(chk, &QCheckBox::toggled,
+                this, &SaveAsDialog::onMetricToggled);
+    }
+
     metricsLayout->addStretch();
     mainLayout->addLayout(metricsLayout);
 
@@ -79,14 +85,12 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     metricResultLabel_->setVisible(false);
     mainLayout->addWidget(metricResultLabel_);
 
-    connect(metricPsnrCheck_, &QCheckBox::toggled,
-            this, &SaveAsDialog::onMetricPsnrToggled);
-    connect(metricSsimCheck_, &QCheckBox::toggled,
-            this, &SaveAsDialog::onMetricSsimToggled);
-    connect(metricMsSsimCheck_, &QCheckBox::toggled,
-        this, &SaveAsDialog::onMetricMsSsimToggled);
-    connect(metricFsimCheck_,   &QCheckBox::toggled,
-        this, &SaveAsDialog::onMetricFsimToggled);
+    metricsLayout->addStretch();
+    mainLayout->addLayout(metricsLayout);
+
+    metricResultLabel_ = new QLabel(this);
+    metricResultLabel_->setVisible(false);
+    mainLayout->addWidget(metricResultLabel_);
 
     auto* btnLayout = new QHBoxLayout;
     auto* applyBtn = new QPushButton(tr("Preview"), this);
@@ -251,102 +255,48 @@ void SaveAsDialog::clearMetricInfo()
 }
 
 
-void SaveAsDialog::onMetricPsnrToggled(bool checked)
+void SaveAsDialog::onMetricToggled(bool checked)
 {
-    if (checked) {
-        metricSsimCheck_->blockSignals(true);
-        metricSsimCheck_->setChecked(false);
-        metricSsimCheck_->blockSignals(false);
+    // Determine which checkbox triggered the slot
+    auto* senderChk = qobject_cast<QCheckBox*>(sender());
+    if (!senderChk)
+        return;
 
-        metricMsSsimCheck_->blockSignals(true);
-        metricMsSsimCheck_->setChecked(false);
-        metricMsSsimCheck_->blockSignals(false);
-
-        metricFsimCheck_->blockSignals(true);
-        metricFsimCheck_->setChecked(false);
-        metricFsimCheck_->blockSignals(false);
-
-        selectedMetric_ = MetricType::PSNR;
-        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
-    } else {
-        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
-            selectedMetric_ = MetricType::None;
-    }
-    clearMetricInfo();
-}
-
-void SaveAsDialog::onMetricSsimToggled(bool checked)
-{
-    if (checked) {
-        metricPsnrCheck_->blockSignals(true);
-        metricPsnrCheck_->setChecked(false);
-        metricPsnrCheck_->blockSignals(false);
-
-        metricMsSsimCheck_->blockSignals(true);
-        metricMsSsimCheck_->setChecked(false);
-        metricMsSsimCheck_->blockSignals(false);
-
-        metricFsimCheck_->blockSignals(true);
-        metricFsimCheck_->setChecked(false);
-        metricFsimCheck_->blockSignals(false);
-
-        selectedMetric_ = MetricType::SSIM;
-        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
-    } else {
-        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
-            selectedMetric_ = MetricType::None;
-    }
-    clearMetricInfo();
-}
-
-void SaveAsDialog::onMetricMsSsimToggled(bool checked)
-{
-    if (checked) {
-        metricPsnrCheck_->blockSignals(true);
-        metricPsnrCheck_->setChecked(false);
-        metricPsnrCheck_->blockSignals(false);
-
-        metricSsimCheck_->blockSignals(true);
-        metricSsimCheck_->setChecked(false);
-        metricSsimCheck_->blockSignals(false);
-
-        metricFsimCheck_->blockSignals(true);
-        metricFsimCheck_->setChecked(false);
-        metricFsimCheck_->blockSignals(false);
-
-        selectedMetric_ = MetricType::MS_SSIM;
-        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
-    } else {
-        if (!metricSsimCheck_->isChecked() && !metricMsSsimCheck_->isChecked() && !metricFsimCheck_->isChecked())
-            selectedMetric_ = MetricType::None;
-    }
-    clearMetricInfo();
-}
-
-void SaveAsDialog::onMetricFsimToggled(bool checked)
-{
-    if (checked) {
-        metricPsnrCheck_->blockSignals(true);
-        metricPsnrCheck_->setChecked(false);
-        metricPsnrCheck_->blockSignals(false);
-
-        metricSsimCheck_->blockSignals(true);
-        metricSsimCheck_->setChecked(false);
-        metricSsimCheck_->blockSignals(false);
-
-        metricMsSsimCheck_->blockSignals(true);
-        metricMsSsimCheck_->setChecked(false);
-        metricMsSsimCheck_->blockSignals(false);
-
-        selectedMetric_ = MetricType::FSIM;
-        emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
-    } else {
-        if (!metricPsnrCheck_->isChecked() &&
-            !metricSsimCheck_->isChecked() &&
-            !metricMsSsimCheck_->isChecked())
-        {
-            selectedMetric_ = MetricType::None;
+    // find index
+    int idx = -1;
+    for (int i = 0; i < metricChecks_.size(); ++i) {
+        if (metricChecks_[i] == senderChk) {
+            idx = i;
+            break;
         }
     }
+    if (idx < 0)
+        return;
+
+    if (checked) {
+        // one metric enabled → disable all others
+        for (int i = 0; i < metricChecks_.size(); ++i) {
+            if (i == idx) continue;
+            metricChecks_[i]->blockSignals(true);
+            metricChecks_[i]->setChecked(false);
+            metricChecks_[i]->blockSignals(false);
+        }
+        selectedMetric_ = metricTypes_[idx];
+    } else {
+        // this checkbox unchecked → if no other is checked, we have None
+        bool anyChecked = false;
+        for (auto* chk : metricChecks_) {
+            if (chk->isChecked()) {
+                anyChecked = true;
+                break;
+            }
+        }
+        if (!anyChecked)
+            selectedMetric_ = MetricType::None;
+    }
+
     clearMetricInfo();
+
+    // immediately refresh the preview with the new metric
+    emit previewRequested(selectedFormat(), quality(), showOriginalChecked());
 }

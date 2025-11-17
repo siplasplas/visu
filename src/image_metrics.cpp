@@ -315,3 +315,71 @@ double computeFsim(const cv::Mat& ref, const cv::Mat& test)
     if (fsim > 1.0f) fsim = 1.0f;
     return fsim;
 }
+
+static const std::vector<MetricDef> kMetricDefs = {
+    { MetricType::PSNR,    "psnr",    "PSNR",
+      "Peak Signal-to-Noise Ratio (dB)" },
+    { MetricType::SSIM,    "ssim",    "SSIM",
+      "Structural Similarity Index" },
+    { MetricType::MS_SSIM, "ms-ssim", "MS-SSIM",
+      "Multi-scale Structural Similarity Index" },
+    { MetricType::FSIM,    "fsim",    "FSIM",
+      "Feature-based Similarity Index (approx.)" },
+};
+
+const std::vector<MetricDef>& getAvailableMetrics()
+{
+    return kMetricDefs;
+}
+
+double computeMetric(MetricType type,
+                     const cv::Mat& ref,
+                     const cv::Mat& test)
+{
+    switch (type) {
+        case MetricType::PSNR:
+            return computePsnr(ref, test);
+        case MetricType::SSIM:
+            return computeSsim(ref, test);
+        case MetricType::MS_SSIM:
+            return computeMsSsim(ref, test);
+        case MetricType::FSIM:
+            return computeFsim(ref, test);
+        case MetricType::None:
+        default:
+            return std::numeric_limits<double>::quiet_NaN();
+    }
+}
+
+std::string formatMetricResult(MetricType type, double value)
+{
+    if (std::isnan(value)) {
+        return "N/A";
+    }
+
+    char buf[128];
+
+    switch (type) {
+        case MetricType::PSNR:
+            if (std::isinf(value))
+                return "PSNR: inf (identical)";
+            std::snprintf(buf, sizeof(buf), "PSNR: %.2f dB", value);
+            return buf;
+
+        case MetricType::SSIM:
+            std::snprintf(buf, sizeof(buf), "SSIM: %.4f", value);
+            return buf;
+
+        case MetricType::MS_SSIM:
+            std::snprintf(buf, sizeof(buf), "MS-SSIM: %.4f", value);
+            return buf;
+
+        case MetricType::FSIM:
+            std::snprintf(buf, sizeof(buf), "FSIM: %.4f", value);
+            return buf;
+
+        case MetricType::None:
+        default:
+            return "Metric: None";
+    }
+}

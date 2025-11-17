@@ -47,8 +47,30 @@
 #ifndef IMAGE_METRICS_H
 #define IMAGE_METRICS_H
 
+#include <string>
+#include <vector>
 #include <opencv2/core.hpp>
 
+enum class MetricType {
+    None,
+    PSNR,
+    SSIM,
+    MS_SSIM,
+    FSIM,
+};
+
+struct MetricDef {
+    MetricType    type;
+    const char*   id;         // stable id, e.g. "psnr"
+    const char*   label;      // short UI label, e.g. "PSNR"
+    const char*   description;// short human-readable description
+};
+
+// List of all metrics supported by this module (except None).
+// Order defines default UI order.
+const std::vector<MetricDef>& getAvailableMetrics();
+
+// Core metric implementations:
 // PSNR (Peak Signal-to-Noise Ratio), in dB.
 // Returns +inf if the images are identical.
 double computePsnr(const cv::Mat& ref, const cv::Mat& test);
@@ -69,6 +91,15 @@ double computeMsSsim(const cv::Mat& ref, const cv::Mat& test, int levels = 5);
 // full FSIM implementation but still more discriminative than pure SSIM
 // for structural and edge differences.
 double computeFsim(const cv::Mat& ref, const cv::Mat& test);
+
+// Generic metric compute function for UI:
+// - returns NaN if metric is not defined or inputs invalid
+double computeMetric(MetricType type,
+                     const cv::Mat& ref,
+                     const cv::Mat& test);
+
+// Utility to get user-friendly label for result,
+// without Qt (std::string → w GUI zrobisz QString::fromStdString()).
+std::string formatMetricResult(MetricType type, double value);
+
 #endif // IMAGE_METRICS_H
-
-

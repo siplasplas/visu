@@ -8,14 +8,7 @@
 #include <QLabel>
 #include <QCheckBox>
 #include "ImageFormats.h"
-
-enum class MetricType {
-    None,
-    PSNR,
-    SSIM,
-    MS_SSIM,
-    FSIM
-};
+#include "image_metrics.h"
 
 class QSpinBox;
 
@@ -38,6 +31,7 @@ public:
     MetricType selectedMetric() const;
     void setMetricInfo(const QString& text);
     void clearMetricInfo();
+
 protected:
     void closeEvent(QCloseEvent *e) override;
 signals:
@@ -52,26 +46,22 @@ public slots:
     void onApplyClicked();
     void onSaveClicked();
 
-    void onMetricPsnrToggled(bool checked);
-    void onMetricSsimToggled(bool checked);
-    void onMetricMsSsimToggled(bool checked);
-    void onMetricFsimToggled(bool checked);
+    void onMetricToggled(bool checked);
 private:
     QComboBox* formatCombo_;
     QSlider*   qualitySlider_;
     QSpinBox* qualitySpin_;
     QLabel*    sizeInfoLabel_;
 
-    QCheckBox* metricPsnrCheck_;
-    QCheckBox* metricSsimCheck_;
-    QCheckBox* metricMsSsimCheck_;
-    QCheckBox* metricFsimCheck_;
+    QVector<QCheckBox*> metricChecks_;
+    QVector<MetricType> metricTypes_;
+    MetricType selectedMetric_ = MetricType::None;
+
     QLabel*    metricResultLabel_;
 
     bool isLossyCurrent_ = false;
 
     ImageFormat formatFromComboIndex(int index) const;
-    MetricType selectedMetric_ = MetricType::None;
 };
 
 #endif // SAVEASDIALOG_H
