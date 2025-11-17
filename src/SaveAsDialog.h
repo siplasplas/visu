@@ -79,9 +79,4 @@ inline ImageFormat SaveAsDialog::selectedFormat() const
     return selectedFormat_;
 }
 
-inline int SaveAsDialog::quality() const
-{
-    return currentQuality_;
-}
-
 #endif // SAVEASDIALOG_H

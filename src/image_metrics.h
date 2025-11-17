@@ -5,11 +5,12 @@
 // image quality metrics used in compression evaluation:
 //
 // Short:
-// - PSNR (simplest, linear),
-// - SSIM (local structure),
+// - PSNR (simplest, linear)
+// - SSIM (local structure)
 // - MS-SSIM (multiscale SSIM)
-// - FSIM-like (gradient + phase),
-// - GMSD  (gradient similarity deviation, fast & sensitive)
+// - FSIM-like (gradient + phase)
+// - GMSD (gradient similarity deviation, fast & sensitive)
+// - VIF (multi-scale information fidelity, high-level detail)
 // Detailed :
 // - PSNR (Peak Signal-to-Noise Ratio):
 //     A simple error-based metric derived from MSE.
@@ -62,6 +63,13 @@
 // more sensitive than PSNR. Suitable for real-time preview.
 // All metrics require reference and test images of the same size and type.
 //
+// Visual Information Fidelity (VIF).
+//
+// A multi-scale information-theoretic metric that estimates how much
+// visual information from the reference image is preserved in the
+// distorted one. Based on local variance/covariance statistics over
+// a Gaussian pyramid.
+//
 // This module is Qt-independent and can be used in GUI applications
 // or standalone console tools.
 //
@@ -80,6 +88,7 @@ enum class MetricType {
     MS_SSIM,
     FSIM,
     GMSD,
+    VIF,
 };
 
 struct MetricDef {
@@ -124,5 +133,12 @@ double computeMetric(MetricType type,
 // Utility to get user-friendly label for result,
 // without Qt (std::string → w GUI zrobisz QString::fromStdString()).
 std::string formatMetricResult(MetricType type, double value);
+
+
+// Typical range: 0..1 (higher is better). Values close to 1 indicate
+// that almost all information is preserved. This metric is more
+// perceptually aligned than PSNR and often more discriminative than
+// SSIM / MS-SSIM for lossy compression (JPEG, WebP, AVIF).
+double computeVif(const cv::Mat& ref, const cv::Mat& test);
 
 #endif // IMAGE_METRICS_H

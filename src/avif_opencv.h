@@ -11,4 +11,4 @@ cv::Mat imreadAvif(const std::string& filename, int flags = cv::IMREAD_COLOR);
 // save to AVIF (quality 0–100; 0 = lowest quality, 100 = best quality)
 bool imwriteAvif(const std::string& filename,
                  const cv::Mat& image,
-                 int quality = 90);
+                 int quantizer);

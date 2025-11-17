@@ -41,8 +41,6 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     qualitySlider_->setValue(90);
 
     qualitySpin_ = new QSpinBox(this);
-    qualitySpin_->setRange(0, 100);
-    qualitySpin_->setValue(90);
 
     int idx = formatCombo_->currentIndex();
     selectedFormat_ = formatFromComboIndex(idx);
@@ -180,10 +178,50 @@ void SaveAsDialog::clearFileSizeInfo()
 void SaveAsDialog::onFormatChanged(int index)
 {
     selectedFormat_ = formatFromComboIndex(index);
+
+    const bool isAvif  = (selectedFormat_ == ImageFormat::Avif);
+    const bool isJpeg  = (selectedFormat_ == ImageFormat::Jpeg);
+    const bool isWebp  = (selectedFormat_ == ImageFormat::Webp);
+    const bool isLossy = isAvif || isJpeg || isWebp;
+
+    isLossyCurrent_ = isLossy;
+    setLossy(isLossy);   // jeśli masz taką funkcję: pokazuje/ukrywa slider+spin, przycisk Preview itd.
+
+    if (!isLossy) {
+        // PNG, TIFF (bezstratne) itp. – brak suwaka, brak preview
+        clearFileSizeInfo();
+        clearMetricInfo();
+        return;
+    }
+    if (isAvif) {
+        // AVIF: slider 0..63 (UI), dalej mapowany w quality()
+        qualitySlider_->setMinimum(0);
+        qualitySlider_->setMaximum(63);
+
+        if (qualitySlider_->value() < 0 || qualitySlider_->value() > 63)
+            qualitySlider_->setValue(32);
+
+        // Spin pokazuje "jakość" 1..100 (user-friendly), mapujesz w onQualitySpinChanged
+        qualitySpin_->setRange(1, 100);
+        qualitySpin_->setValue(90);
+    } else {
+        // JPEG / WebP: natywne quality 0..100
+        qualitySlider_->setMinimum(0);
+        qualitySlider_->setMaximum(100);
+
+        if (qualitySlider_->value() < 0 || qualitySlider_->value() > 100)
+            qualitySlider_->setValue(80);
+
+        qualitySpin_->setRange(1, 100);
+        qualitySpin_->setValue(90);
+    }
+
+    currentQuality_ = qualitySlider_->value();
+
     clearFileSizeInfo();
     clearMetricInfo();
-    // Format change → full preview (compression + decompression)
-    emit formatChanged();
+
+    emit formatChanged();  // masz to podpięte do onSaveAsPreviewRequested(...)
 }
 
 void SaveAsDialog::onQualityChanged(int q)
@@ -200,25 +238,38 @@ void SaveAsDialog::onQualitySliderChanged(int value)
 
     currentQuality_ = value;
 
-    if (qualitySpin_->value() != value) {
+    if (selectedFormat_ == ImageFormat::Avif) {
+        // slider = quantizer, ale w edit możesz pokazywać "jakość"
+        int visibleQuality = 63 - currentQuality_; // 63..0 → 0..63
         qualitySpin_->blockSignals(true);
-        qualitySpin_->setValue(value);
+        qualitySpin_->setValue(visibleQuality);
+        qualitySpin_->blockSignals(false);
+    } else {
+        qualitySpin_->blockSignals(true);
+        qualitySpin_->setValue(currentQuality_);
         qualitySpin_->blockSignals(false);
     }
 
     clearFileSizeInfo();
     clearMetricInfo();
 
-    emit formatChanged();  // quality change → also full preview
+    emit formatChanged();
 }
 
 void SaveAsDialog::onQualitySpinChanged(int value)
 {
     int v = value;
-    if (v < 1) v = 1;
-    if (v > 100) v = 100;
-    if (qualitySlider_->value() != v)
-        qualitySlider_->setValue(v);
+    if (selectedFormat_ == ImageFormat::Avif) {
+        if (v < 0) v = 0;
+        if (v > 63) v = 63;
+        if (qualitySlider_->value() != 63-v)
+            qualitySlider_->setValue(63-v);
+    } else {
+        if (v < 1) v = 1;
+        if (v > 100) v = 100;
+        if (qualitySlider_->value() != v)
+            qualitySlider_->setValue(v);
+    }
     if (isLossyCurrent_)
         emit previewRequested(selectedFormat(), v, showOriginalChecked());
 }
@@ -330,3 +381,17 @@ void SaveAsDialog::onQualityEditChanged(const QString& text)
     emit formatChanged();
 }
 
+int SaveAsDialog::quality() const
+{
+    if (selectedFormat_ == ImageFormat::Avif) {
+        // slider: 0..63 (UI), 63 → best quality
+        int sliderVal = qualitySlider_->value();     // 0..63
+        int quantizer = 63 - sliderVal;              // 0..63, 0 = best
+        if (quantizer < 0)  quantizer = 0;
+        if (quantizer > 63) quantizer = 63;
+        return quantizer;                             // natywny parametr dla imwriteAvif
+    } else {
+        // JPEG / WebP / inne: natywny quality 0..100
+        return qualitySlider_->value();
+    }
+}

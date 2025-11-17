@@ -131,8 +131,10 @@ static int qualityToQuantizer(int quality)
 
 bool imwriteAvif(const std::string& filename,
                  const cv::Mat& image,
-                 int quality)
+                 int quantizer)
 {
+    if (quantizer < 0)  quantizer = 0;
+    if (quantizer > 63) quantizer = 63;
     if (image.empty()) {
         std::cerr << "imwriteAvif: empty image\n";
         return false;
@@ -213,9 +215,7 @@ bool imwriteAvif(const std::string& filename,
         return false;
     }
 
-    int q = qualityToQuantizer(quality);
-    encoder->minQuantizer = q;
-    encoder->maxQuantizer = q;
+    encoder->minQuantizer = encoder->maxQuantizer = quantizer;
     // You can select a speed between 0 and 10; 0 = slowest, best quality
     encoder->speed = 6; // default balance
 

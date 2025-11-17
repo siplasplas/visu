@@ -1358,9 +1358,6 @@ void MainWindow::openSaveAsDialog()
     saveAsDlg_->show();
     saveAsDlg_->raise();
     saveAsDlg_->activateWindow();
-
-    // Pierwszy preview (startowo np. JPEG 90 lub PNG bezstratnie)
-    saveAsDlg_->onFormatChanged(saveAsDlg_->formatToComboIndex(ImageFormat::Jpeg));
 }
 
 void MainWindow::onShowOriginalClicked() {
@@ -1633,9 +1630,9 @@ bool MainWindow::saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& 
     switch (fmt) {
     case ImageFormat::Jpeg:
         // JPEG – klasyczna kompresja stratna
-        params = { cv::IMWRITE_JPEG_QUALITY, quality };
-        ok = cv::imwrite(fname, mat, params);
-        break;
+            params = { cv::IMWRITE_JPEG_QUALITY, quality };
+            cv::imwrite(path.toStdString(), currentMat_, params);
+            break;
 
     case ImageFormat::Webp:
         // WebP: OpenCV obsługuje IMWRITE_WEBP_QUALITY (0–100)
@@ -1644,9 +1641,8 @@ bool MainWindow::saveLossy(const QString& path, ImageFormat fmt, const cv::Mat& 
         break;
 
     case ImageFormat::Avif:
-        // AVIF: własna funkcja na bazie libavif
-        ok = imwriteAvif(fname, mat, quality);
-        break;
+            imwriteAvif(path.toStdString(), currentMat_, quality);
+            break;
 
     // If you want to add “lossy PNG8/GIF with quantization” in the future, you can add it here:
     // case ImageFormat::Png:
