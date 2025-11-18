@@ -48,32 +48,33 @@ void ImageWidget::resetViewToFit()
 
 void ImageWidget::setImage(const cv::Mat& mat, bool resetView)
 {
-    if (mat.empty()) {
-        qimage_ = QImage();
-        // here you can reset the view completely
-        resetViewToFit();
+    // remember mat – shallow copy, no pixel copying
+    imageMat_ = mat;
+
+    // we create a QImage based on this matrix
+    QImage newImg = matToQImage(imageMat_);
+    qimage_ = std::move(newImg);
+
+    if (qimage_.isNull()) {
+        // no image - clear state
+        imageMat_.release();
+        hasImage_ = false;
         update();
+        emit pixelInfoChanged(-1, -1, -1, -1, -1);
         return;
     }
 
-    // conversion cv::Mat -> QImage
-    QImage newImg = matToQImage(mat);
+    hasImage_ = true;
 
-    // we check if the size is the same as before
-    bool sameSize = !qimage_.isNull() && (qimage_.size() == newImg.size());
-
-    qimage_ = std::move(newImg);
-
-    // If they ask to reset the view OR the size has changed → we reset it
-    if (resetView || !sameSize) {
-        resetViewToFit();   // here you have your autofit logic / mode 1
+    if (resetView) {
+        scaleFactor_ = 1.0;
+        panOffset_ = QPoint(0, 0);
+        zoomMode_    = ZoomMode::AutoFit;
     }
-    // Otherwise:
-    // - Do NOT change the current scale_, offset, zoom mode
-    // - paintEvent will use the same parameters, only with a different image
-    update();
-}
 
+    update();
+    emit pixelInfoChanged(-1, -1, -1, -1, -1);
+}
 
 void ImageWidget::resetZoom()
 {
@@ -85,6 +86,9 @@ void ImageWidget::resetZoom()
 void ImageWidget::paintEvent(QPaintEvent* event)
 {
     Q_UNUSED(event);
+    if (!hasImage_) {
+        return;
+    }
 
     QPainter p(this);
     p.fillRect(rect(), Qt::black);
@@ -196,6 +200,11 @@ void ImageWidget::mouseMoveEvent(QMouseEvent* event)
 
 void ImageWidget::updatePixelInfoAt(const QPoint& pos)
 {
+    if (!hasImage_) {
+        emit pixelInfoChanged(-1,-1,-1,-1,-1);
+        return;
+    }
+
     if (imageMat_.empty() || qimage_.isNull()) {
         emit pixelInfoChanged(-1, -1, -1, -1, -1);
         return;
@@ -447,6 +456,7 @@ void ImageWidget::zoomFit()
 
 void ImageWidget::clearImage()
 {
+    hasImage_ = false;
     qimage_ = QImage();
     targetRect_ = QRect();
     panOffset_ = QPoint(0, 0);

@@ -43,6 +43,7 @@ private:
     cv::Mat imageMat_;
     QImage qimage_;
     QRect targetRect_;
+    bool hasImage_ = false;
 
     enum class ZoomMode { AutoFit, Fixed };
     ZoomMode zoomMode_ = ZoomMode::AutoFit;
