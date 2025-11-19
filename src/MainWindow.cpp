@@ -250,9 +250,8 @@ void MainWindow::loadImageAt(int index)
     if (img.empty()) {
         return;
     }
-
     currentIndex_ = index;
-
+    bool preserveZoom = img.cols == originalMat_.cols && img.rows == originalMat_.rows;
     originalMat_ = img.clone();
     imageDirty_    = false;
     safeOnlyDirty_ = true;
@@ -260,7 +259,7 @@ void MainWindow::loadImageAt(int index)
     isCurrentFileJpeg_   = (ext == "jpg" || ext == "jpeg");
     pendingJpegRotSteps_ = 0;
     currentMat_  = img.clone();
-    imageWidget_->setImage(currentMat_, true);
+    imageWidget_->setImage(currentMat_, !preserveZoom);
 
     cv::Mat gray;
     if (originalMat_.channels() == 3)

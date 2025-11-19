@@ -7,6 +7,9 @@
 
 namespace {
 
+const double minScale = 0.01;
+const double maxScale = 100.0;
+
 QImage matToQImage(const cv::Mat& src)
 {
     if (src.empty())
@@ -291,8 +294,6 @@ void ImageWidget::applyZoom(double factor)
 
     scaleFactor_ *= factor;
 
-    const double minScale = 0.01;
-    const double maxScale = 80.0;
     if (scaleFactor_ < minScale) scaleFactor_ = minScale;
     if (scaleFactor_ > maxScale) scaleFactor_ = maxScale;
 
@@ -320,8 +321,6 @@ void ImageWidget::applyZoomAt(const QPoint& anchorWidget, double factor)
     double oldScale = scaleFactor_;
     double newScale = scaleFactor_ * factor;
 
-    const double minScale = 0.05;
-    const double maxScale = 16.0;
     if (newScale < minScale) newScale = minScale;
     if (newScale > maxScale) newScale = maxScale;
 
