@@ -6,6 +6,7 @@
 enum class ImageFormat {
     Png,
     Jpeg,
+    Jp2,
     Bmp,
     Gif,
     Tiff,
@@ -43,6 +44,7 @@ inline ImageFormat detectImageFormat(const QString& path)
     QString ext = QFileInfo(path).suffix().toLower();
     if (ext == "png")  return ImageFormat::Png;
     if (ext == "jpg" || ext == "jpeg") return ImageFormat::Jpeg;
+    if (ext == "jp2") return ImageFormat::Jp2;
     if (ext == "bmp")  return ImageFormat::Bmp;
     if (ext == "gif")  return ImageFormat::Gif;
     if (ext == "tif" || ext == "tiff") return ImageFormat::Tiff;
@@ -76,6 +78,9 @@ inline CompressionNature compressionNature(ImageFormat fmt)
             return CompressionNature::Hybrid;
     case ImageFormat::Jpeg:
             // JPEG is always lossy.
+        return CompressionNature::Lossy;
+    case ImageFormat::Jp2:
+        // JPEG is always lossy.
         return CompressionNature::Lossy;
     default:
         return CompressionNature::Hybrid;

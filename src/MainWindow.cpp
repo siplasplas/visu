@@ -62,7 +62,7 @@ MainWindow::MainWindow(const QString& startPath, QWidget* parent)
 
     QString suffix = fi.suffix().toLower();
     const QStringList imageExt = {
-        "png","jpg","jpeg","bmp","gif","webp","tif","tiff", "avif"
+        "png","jpg","jpeg","jp2", "bmp","gif","webp","tif","tiff", "avif"
     };
 
     if (!imageExt.contains(suffix)) {
@@ -184,7 +184,7 @@ void MainWindow::updateActionsForMode()
 bool MainWindow::isImageFile(const QString& filePath) const
 {
     static const QStringList exts = {
-        "jpg", "jpeg", "png", "bmp", "gif", "tif", "tiff", "webp", "avif"
+        "jpg", "jpeg", "jp2","png", "bmp", "gif", "tif", "tiff", "webp", "avif"
     };
 
     QFileInfo fi(filePath);
@@ -720,7 +720,7 @@ void MainWindow::openFile()
     dlg.setFileMode(QFileDialog::ExistingFile);
     dlg.setOption(QFileDialog::DontUseNativeDialog, true);
     dlg.setNameFilter(
-        tr("Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff *.webp *.avif);;All files (*.*)")
+        tr("Images (*.png *.jpg *.jpeg *.jp2 *.bmp *.gif *.tif *.tiff *.webp *.avif);;All files (*.*)")
     );
 
     if (!baseDirectory_.isEmpty())
@@ -1389,7 +1389,8 @@ void MainWindow::onSaveAsPreviewRequested(ImageFormat fmt, int quality, bool sho
     // 2. Lossless format (PNG/BMP/TIFF) – there is no point in doing compression previews
     if (!isAlwaysLossyFormat(fmt) &&
         fmt != ImageFormat::Webp &&
-        fmt != ImageFormat::Avif)
+        fmt != ImageFormat::Avif &&
+        fmt != ImageFormat::Jp2)
     {
         pendingRequest_.reset();
         saveAsDlg_->clearFileSizeInfo();
@@ -1422,6 +1423,7 @@ void MainWindow::startPreviewJob(const SaveAsRequest& req)
 
     QString ext = (fmt == ImageFormat::Jpeg) ? "jpg" :
                   (fmt == ImageFormat::Webp) ? "webp" :
+                  (fmt == ImageFormat::Jp2) ? "jp2" :
                   (fmt == ImageFormat::Avif) ? "avif" : "jpg";
 
     previewTmpPath_ = QString("/dev/shm/visu_preview_%1_%2.%3")
@@ -1438,6 +1440,9 @@ void MainWindow::startPreviewJob(const SaveAsRequest& req)
 
         if (fmt == ImageFormat::Jpeg) {
             params = { cv::IMWRITE_JPEG_QUALITY, quality };
+            ok = cv::imwrite(tmp, src, params);
+        } else if (fmt == ImageFormat::Jp2) {
+            params = { cv::IMWRITE_JPEG2000_COMPRESSION_X1000, quality };
             ok = cv::imwrite(tmp, src, params);
         } else if (fmt == ImageFormat::Webp) {
             params = { cv::IMWRITE_WEBP_QUALITY, quality };

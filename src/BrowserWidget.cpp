@@ -75,7 +75,7 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
     auto future = QtConcurrent::run([this, dirPath]() {
         QDir dir(dirPath);
         QStringList nameFilters;
-        nameFilters << "*.png" << "*.jpg" << "*.jpeg" << "*.bmp"
+        nameFilters << "*.png" << "*.jpg" << "*.jpeg" << ".jp2" << "*.bmp"
                     << "*.gif" << "*.webp" << "*.tif" << "*.tiff" << "*.avif";
 
         QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);

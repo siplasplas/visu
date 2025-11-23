@@ -21,14 +21,12 @@ SaveAsDialog::SaveAsDialog(QWidget* parent)
     // png, jpg, gif, webp, avif, bmp, tiff
     formatCombo_->addItem("PNG (*.png)");
     formatCombo_->addItem("JPG (*.jpg)");
+    formatCombo_->addItem("JP2 (*.jp2)");
     formatCombo_->addItem("GIF (*.gif)");
     formatCombo_->addItem("WEBP (*.webp)");
     formatCombo_->addItem("AVIF (*.avif)");
     formatCombo_->addItem("BMP (*.bmp)");
     formatCombo_->addItem("TIFF (*.tif)");
-
-    connect(formatCombo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &SaveAsDialog::onFormatChanged);
 
     auto* formatLayout = new QHBoxLayout;
     formatLayout->addWidget(new QLabel(tr("Format:"), this));
@@ -123,11 +121,12 @@ ImageFormat SaveAsDialog::formatFromComboIndex(int index) const
     switch (index) {
     case 0: return ImageFormat::Png;
     case 1: return ImageFormat::Jpeg;  // tylko "jpg" w UI
-    case 2: return ImageFormat::Gif;
-    case 3: return ImageFormat::Webp;
-    case 4: return ImageFormat::Avif;
-    case 5: return ImageFormat::Bmp;
-    case 6: return ImageFormat::Tiff;
+    case 2: return ImageFormat::Jp2;
+    case 3: return ImageFormat::Gif;
+    case 4: return ImageFormat::Webp;
+    case 5: return ImageFormat::Avif;
+    case 6: return ImageFormat::Bmp;
+    case 7: return ImageFormat::Tiff;
     default: return ImageFormat::Unknown;
     }
 }
@@ -142,6 +141,7 @@ int SaveAsDialog::formatToComboIndex(ImageFormat fmt) const
     case ImageFormat::Avif: return 4;
     case ImageFormat::Bmp:  return 5;
     case ImageFormat::Tiff: return 6;
+    case ImageFormat::Jp2: return 7;
     default: return 0;
     }
 }
@@ -181,8 +181,9 @@ void SaveAsDialog::onFormatChanged(int index)
 
     const bool isAvif  = (selectedFormat_ == ImageFormat::Avif);
     const bool isJpeg  = (selectedFormat_ == ImageFormat::Jpeg);
+    const bool isJp2   = (selectedFormat_ == ImageFormat::Jp2);
     const bool isWebp  = (selectedFormat_ == ImageFormat::Webp);
-    const bool isLossy = isAvif || isJpeg || isWebp;
+    const bool isLossy = isAvif || isJpeg || isJp2| isWebp;
 
     isLossyCurrent_ = isLossy;
     setLossy(isLossy);   // jeśli masz taką funkcję: pokazuje/ukrywa slider+spin, przycisk Preview itd.
@@ -193,6 +194,7 @@ void SaveAsDialog::onFormatChanged(int index)
         clearMetricInfo();
         return;
     }
+    qualitySpin_->blockSignals(true);
     if (isAvif) {
         // AVIF: slider 0..63 (UI), dalej mapowany w quality()
         qualitySlider_->setMinimum(0);
@@ -204,6 +206,11 @@ void SaveAsDialog::onFormatChanged(int index)
         // Spin pokazuje "jakość" 1..100 (user-friendly), mapujesz w onQualitySpinChanged
         qualitySpin_->setRange(1, 100);
         qualitySpin_->setValue(90);
+    } else if (isJp2){
+        // JPEG / WebP: natywne quality 0..410
+        qualitySlider_->setMinimum(0);
+        qualitySlider_->setMaximum(410);
+        qualitySpin_->setRange(1, 410);
     } else {
         // JPEG / WebP: natywne quality 0..100
         qualitySlider_->setMinimum(0);
@@ -215,6 +222,7 @@ void SaveAsDialog::onFormatChanged(int index)
         qualitySpin_->setRange(1, 100);
         qualitySpin_->setValue(90);
     }
+    qualitySpin_->blockSignals(false);
 
     currentQuality_ = qualitySlider_->value();
 
@@ -264,6 +272,11 @@ void SaveAsDialog::onQualitySpinChanged(int value)
         if (v > 63) v = 63;
         if (qualitySlider_->value() != 63-v)
             qualitySlider_->setValue(63-v);
+    } else if (selectedFormat_ == ImageFormat::Jp2)  {
+        if (v < 1) v = 1;
+        if (v > 410) v = 410;
+        if (qualitySlider_->value() != v)
+            qualitySlider_->setValue(v);
     } else {
         if (v < 1) v = 1;
         if (v > 100) v = 100;
