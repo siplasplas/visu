@@ -11,7 +11,6 @@ Installation safe rotationsL
 ```bash
 git clone https://github.com/libjpeg-turbo/libjpeg-turbo.git
 cd libjpeg-turbo
-
 ```
 
 ## Installation
