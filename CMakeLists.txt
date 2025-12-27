@@ -68,3 +68,58 @@ target_link_libraries(visu PRIVATE
         ${AVIF_LIBRARIES}
         ${TURBOJPEG_LIBRARY}
 )
+
+# Installation
+include(GNUInstallDirs)
+
+# Install executable
+install(TARGETS ${PROJECT_NAME}
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+
+# Install .desktop file
+install(FILES res/visu.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+
+# Install SVG icon (scalable)
+install(FILES res/icons/visu.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME visu.svg)
+
+# Generate and install PNG icons from SVG at install time
+find_program(INKSCAPE_EXECUTABLE inkscape)
+find_program(RSVG_CONVERT_EXECUTABLE rsvg-convert)
+
+if(INKSCAPE_EXECUTABLE)
+    set(SVG_CONVERTER "${INKSCAPE_EXECUTABLE}")
+elseif(RSVG_CONVERT_EXECUTABLE)
+    set(SVG_CONVERTER "${RSVG_CONVERT_EXECUTABLE}")
+endif()
+
+if(SVG_CONVERTER)
+    foreach(size 16 24 32 48 64 128 256)
+        install(CODE "
+            set(ICON_DIR \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_DATADIR}/icons/hicolor/${size}x${size}/apps\")
+            file(MAKE_DIRECTORY \"\${ICON_DIR}\")
+            set(OUTPUT_FILE \"\${ICON_DIR}/visu.png\")
+            set(INPUT_FILE \"${CMAKE_CURRENT_SOURCE_DIR}/res/icons/visu.svg\")
+            if(\"${INKSCAPE_EXECUTABLE}\" STREQUAL \"${SVG_CONVERTER}\")
+                execute_process(
+                    COMMAND ${SVG_CONVERTER} \"\${INPUT_FILE}\" --export-type=png --export-filename=\${OUTPUT_FILE} --export-width=${size} --export-height=${size}
+                    RESULT_VARIABLE result
+                )
+            else()
+                execute_process(
+                    COMMAND ${SVG_CONVERTER} -w ${size} -h ${size} -o \"\${OUTPUT_FILE}\" \"\${INPUT_FILE}\"
+                    RESULT_VARIABLE result
+                )
+            endif()
+            if(result EQUAL 0)
+                message(STATUS \"Generated: \${OUTPUT_FILE}\")
+            else()
+                message(WARNING \"Failed to generate: \${OUTPUT_FILE}\")
+            endif()
+        ")
+    endforeach()
+else()
+    message(WARNING "No SVG converter found (inkscape or rsvg-convert). PNG icons will not be installed.")
+endif()

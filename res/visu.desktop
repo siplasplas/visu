@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Visu
+Comment=Image Viewer and Editor
+Exec=visu %F
+Icon=visu
+Terminal=false
+Type=Application
+Categories=Graphics;Viewer;Photography;
+MimeType=image/jpeg;image/png;image/gif;image/bmp;image/tiff;image/webp;image/avif;
+Keywords=image;photo;picture;viewer;
