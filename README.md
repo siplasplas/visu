@@ -1,9 +1,11 @@
 # visu
 image viewer
 
-Ubuntu/ Debian
+## Prerequisites
+
+Ubuntu/Debian:
 ```bash
-sudo apt install libavif-dev
+sudo apt install qt6-base-dev libopencv-dev libavif-dev libturbojpeg0-dev
 ```
 Installation safe rotationsL
 ```bash
