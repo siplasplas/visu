@@ -1,8 +1,27 @@
 cmake_minimum_required(VERSION 3.16)
-project(visu VERSION 0.1 LANGUAGES CXX)
+project(visu VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Get git commit SHA
+execute_process(
+    COMMAND git rev-parse --short HEAD
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_SHA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_SHA)
+    set(GIT_SHA "unknown")
+endif()
+
+# Configure version header
+configure_file(
+    ${CMAKE_SOURCE_DIR}/src/config.h.in
+    ${CMAKE_BINARY_DIR}/config.h
+    @ONLY
+)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTOUIC ON)
@@ -57,6 +76,7 @@ if (NOT TURBOJPEG_INCLUDE_DIR OR NOT TURBOJPEG_LIBRARY)
 endif()
 
 target_include_directories(visu PRIVATE
+        ${CMAKE_BINARY_DIR}
         ${OpenCV_INCLUDE_DIRS}
         ${AVIF_INCLUDE_DIRS}
         ${TURBOJPEG_INCLUDE_DIR}

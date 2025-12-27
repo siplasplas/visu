@@ -1,0 +1,7 @@
+#ifndef CONFIG_H
+#define CONFIG_H
+
+#define VISU_VERSION "@PROJECT_VERSION@"
+#define VISU_GIT_SHA "@GIT_SHA@"
+
+#endif // CONFIG_H

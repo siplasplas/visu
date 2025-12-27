@@ -40,6 +40,7 @@
 
 #include "avif_opencv.h"
 #include "jpeg_lossless.h"
+#include "config.h"
 
 MainWindow::MainWindow(const QString& startPath, QWidget* parent)
     : QMainWindow(parent)
@@ -194,6 +195,25 @@ void MainWindow::initUi()
     connect(shadowCompAct_, &QAction::triggered,
             this, &MainWindow::openShadowCompressionDialog);
     imageMenu->addAction(shadowCompAct_);
+
+    auto helpMenu = menuBar()->addMenu(tr("&Help"));
+    auto aboutAct = new QAction(tr("About"), this);
+    connect(aboutAct, &QAction::triggered, this, [this]() {
+        QString aboutText = QString(
+            "<h2>Visu</h2>"
+            "<p>Version: %1</p>"
+            "<p>Git commit: %2</p>"
+            "<hr>"
+            "<p>Qt version: %3</p>"
+            "<p>OpenCV version: %4</p>"
+        ).arg(VISU_VERSION)
+         .arg(VISU_GIT_SHA)
+         .arg(qVersion())
+         .arg(CV_VERSION);
+
+        QMessageBox::about(this, tr("About Visu"), aboutText);
+    });
+    helpMenu->addAction(aboutAct);
 }
 template <typename> constexpr auto MainWindow::qt_create_metaobjectdata() {}
 
