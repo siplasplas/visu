@@ -70,6 +70,7 @@ private:
     ImageWidget* imageWidget_ = nullptr;
     QLabel* coordLabel_ = nullptr;
     QLabel* rgbLabel_   = nullptr;
+    QLabel* rgbHexLabel_   = nullptr;
     QLabel* indexLabel_ = nullptr;
 
     QVector<QString> imageFiles_;

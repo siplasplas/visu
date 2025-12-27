@@ -104,14 +104,18 @@ void MainWindow::initUi()
 
     coordLabel_ = new QLabel(this);
     rgbLabel_   = new QLabel(this);
+    rgbHexLabel_   = new QLabel(this);
     indexLabel_ = new QLabel(this);
 
     statusBar()->addPermanentWidget(indexLabel_);
     statusBar()->addPermanentWidget(coordLabel_);
     statusBar()->addPermanentWidget(rgbLabel_);
+    statusBar()->addPermanentWidget(rgbHexLabel_);
 
     coordLabel_->setText("X: -, Y: -");
     rgbLabel_->setText("R: -, G: -, B: -");
+    rgbHexLabel_->setText("#######");
+
     indexLabel_->setText("0/0");
 
     connect(imageWidget_, &ImageWidget::pixelInfoChanged,
@@ -171,6 +175,7 @@ void MainWindow::initUi()
             this, &MainWindow::openShadowCompressionDialog);
     imageMenu->addAction(shadowCompAct_);
 }
+template <typename> constexpr auto MainWindow::qt_create_metaobjectdata() {}
 
 void MainWindow::updateActionsForMode()
 {
@@ -334,12 +339,21 @@ void MainWindow::onPixelInfoChanged(int x, int y, int r, int g, int b)
 
     if (r < 0 || g < 0 || b < 0) {
         rgbLabel_->setText("R: -, G: -, B: -");
+        rgbHexLabel_->setText("#######");
+
     } else {
         rgbLabel_->setText(
             QString("R: %1, G: %2, B: %3")
                 .arg(r)
                 .arg(g)
                 .arg(b)
+        );
+        rgbHexLabel_->setText(
+             QString("#%1%2%3")
+                .arg(r, 2, 16, QLatin1Char('0'))
+                .arg(g, 2, 16, QLatin1Char('0'))
+                .arg(b, 2, 16, QLatin1Char('0'))
+                .toUpper()
         );
     }
 }
