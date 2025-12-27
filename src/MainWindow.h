@@ -51,6 +51,8 @@ private slots:
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
 private:
     void initUi();
     void updateActionsForMode();

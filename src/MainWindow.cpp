@@ -31,6 +31,9 @@
 #include <QMenu>
 #include <QClipboard>
 #include <QApplication>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
 
 #include <opencv2/opencv.hpp>
 #include <QtConcurrent/qtconcurrentrun.h>
@@ -94,6 +97,8 @@ MainWindow::MainWindow(const QString& startPath, QWidget* parent)
 
 void MainWindow::initUi()
 {
+    setAcceptDrops(true);
+
     stacked_ = new QStackedWidget(this);
 
     browserWidget_ = new BrowserWidget(this);
@@ -1783,4 +1788,58 @@ void MainWindow::copyPosition()
         .arg(lastPixelY_);
 
     QApplication::clipboard()->setText(text);
+}
+
+void MainWindow::dragEnterEvent(QDragEnterEvent* event)
+{
+    if (event->mimeData()->hasUrls()) {
+        const QList<QUrl> urls = event->mimeData()->urls();
+        for (const QUrl& url : urls) {
+            if (url.isLocalFile() && isImageFile(url.toLocalFile())) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    event->ignore();
+}
+
+void MainWindow::dropEvent(QDropEvent* event)
+{
+    if (!event->mimeData()->hasUrls()) {
+        event->ignore();
+        return;
+    }
+
+    const QList<QUrl> urls = event->mimeData()->urls();
+    for (const QUrl& url : urls) {
+        if (!url.isLocalFile())
+            continue;
+
+        QString path = url.toLocalFile();
+        if (!isImageFile(path))
+            continue;
+
+        if (!maybeSaveCurrentImage())
+            return;
+
+        QFileInfo fi(path);
+        const QString dir = fi.absolutePath();
+        const QString file = fi.absoluteFilePath();
+
+        scanDirectory(dir, file);
+        browserWidget_->ensureDirectoryLoaded(dir);
+
+        if (!imageFiles_.isEmpty()) {
+            if (currentIndex_ < 0 || currentIndex_ >= imageFiles_.size())
+                currentIndex_ = 0;
+            loadImageAt(currentIndex_);
+            switchToSingleMode();
+        }
+
+        event->acceptProposedAction();
+        return;
+    }
+
+    event->ignore();
 }
