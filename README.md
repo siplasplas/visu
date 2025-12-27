@@ -12,13 +12,25 @@ cd libjpeg-turbo
 
 ```
 
-```bash
-mkdir build
-cd build
-cmake -G"Unix Makefiles" -DCMAKE_INSTALL_PREFIX=/usr/local ..
-make -j$(nproc)
-```
+## Installation
 
 ```bash
+mkdir build && cd build
+cmake ..
+make -j$(nproc)
 sudo make install
+```
+
+## Local installation (user)
+
+```bash
+mkdir build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX=$HOME/.local
+make -j$(nproc)
+make install
+```
+
+If the icon doesn't appear in the application menu, refresh the icon cache:
+```bash
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor
 ```
