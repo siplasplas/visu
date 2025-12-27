@@ -28,6 +28,9 @@
 #include <QMessageBox>
 #include <QStandardPaths>
 #include <QDir>
+#include <QMenu>
+#include <QClipboard>
+#include <QApplication>
 
 #include <opencv2/opencv.hpp>
 #include <QtConcurrent/qtconcurrentrun.h>
@@ -120,6 +123,18 @@ void MainWindow::initUi()
 
     connect(imageWidget_, &ImageWidget::pixelInfoChanged,
             this, &MainWindow::onPixelInfoChanged);
+
+    contextMenu_ = new QMenu(this);
+    contextMenu_->addAction("Copy RGB (#RRGGBB)", this, &MainWindow::copyRgbHex);
+    contextMenu_->addAction("Copy RGB (R, G, B)", this, &MainWindow::copyRgbDecimal);
+    contextMenu_->addSeparator();
+    contextMenu_->addAction("Copy position", this, &MainWindow::copyPosition);
+
+    statusBar()->setContextMenuPolicy(Qt::CustomContextMenu);
+    connect(statusBar(), &QWidget::customContextMenuRequested,
+            this, [this](const QPoint& pos) {
+                contextMenu_->exec(statusBar()->mapToGlobal(pos));
+            });
 
     auto fileMenu = menuBar()->addMenu(tr("&File"));
 
@@ -325,6 +340,12 @@ void MainWindow::goToIndex(int index) {
 
 void MainWindow::onPixelInfoChanged(int x, int y, int r, int g, int b)
 {
+    lastPixelX_ = x;
+    lastPixelY_ = y;
+    lastPixelR_ = r;
+    lastPixelG_ = g;
+    lastPixelB_ = b;
+
     if (x < 0 || y < 0) {
         coordLabel_->setText("X: -, Y: -");
         rgbLabel_->setText("R: -, G: -, B: -");
@@ -1723,4 +1744,43 @@ void MainWindow::updateSaveAsMetricsOnly()
     double value = computeMetric(metric, *ref, *test);
     std::string s = formatMetricResult(metric, value);
     saveAsDlg_->setMetricInfo(QString::fromStdString(s));
+}
+
+void MainWindow::copyRgbHex()
+{
+    if (lastPixelR_ < 0 || lastPixelG_ < 0 || lastPixelB_ < 0)
+        return;
+
+    QString hex = QString("#%1%2%3")
+        .arg(lastPixelR_, 2, 16, QLatin1Char('0'))
+        .arg(lastPixelG_, 2, 16, QLatin1Char('0'))
+        .arg(lastPixelB_, 2, 16, QLatin1Char('0'))
+        .toUpper();
+
+    QApplication::clipboard()->setText(hex);
+}
+
+void MainWindow::copyRgbDecimal()
+{
+    if (lastPixelR_ < 0 || lastPixelG_ < 0 || lastPixelB_ < 0)
+        return;
+
+    QString text = QString("%1, %2, %3")
+        .arg(lastPixelR_)
+        .arg(lastPixelG_)
+        .arg(lastPixelB_);
+
+    QApplication::clipboard()->setText(text);
+}
+
+void MainWindow::copyPosition()
+{
+    if (lastPixelX_ < 0 || lastPixelY_ < 0)
+        return;
+
+    QString text = QString("%1, %2")
+        .arg(lastPixelX_)
+        .arg(lastPixelY_);
+
+    QApplication::clipboard()->setText(text);
 }

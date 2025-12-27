@@ -18,6 +18,7 @@
 #include "SaveAsDialog.h"
 
 class QLabel;
+class QMenu;
 class ImageWidget;
 class DoubleThresholdDialog;
 class ShadowCompressionDialog;
@@ -44,6 +45,9 @@ private slots:
     void onShowOriginalClicked();
     void onPreviewJobFinished();
     void updateSaveAsMetricsOnly();
+    void copyRgbHex();
+    void copyRgbDecimal();
+    void copyPosition();
 protected:
     void keyPressEvent(QKeyEvent* event) override;
     void closeEvent(QCloseEvent* event) override;
@@ -137,6 +141,13 @@ private:
     bool previewJobRunning_ = false;
     std::optional<SaveAsRequest> pendingRequest_;
     QString previewTmpPath_;
+
+    QMenu* contextMenu_ = nullptr;
+    int lastPixelX_ = -1;
+    int lastPixelY_ = -1;
+    int lastPixelR_ = -1;
+    int lastPixelG_ = -1;
+    int lastPixelB_ = -1;
 };
 
 #endif // MAINWINDOW_H
