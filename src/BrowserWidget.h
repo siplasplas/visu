@@ -9,6 +9,7 @@ class QFileSystemModel;
 class QTreeView;
 class QScrollArea;
 class QGridLayout;
+class QLineEdit;
 
 class BrowserWidget : public QWidget
 {
@@ -24,6 +25,7 @@ signals:
 private slots:
     void onDirectorySelected(const QModelIndex& index);
     void onThumbnailsFinished();
+    void onPathEditReturnPressed();
 
 private:
     void initUi();
@@ -31,8 +33,11 @@ private:
     void cancelThumbnailLoading();
     void addThumbnail(const QString& filePath, const QImage& image);
 
+    void expandPathInTree(const QString& path);
+
     QFileSystemModel* fsModel_     = nullptr;
     QTreeView*        tree_        = nullptr;
+    QLineEdit*        pathEdit_    = nullptr;
     QScrollArea*      scrollArea_  = nullptr;
     QWidget*          thumbsWidget_ = nullptr;
     QGridLayout*      gridLayout_  = nullptr;

@@ -9,6 +9,7 @@
 #include <QLabel>
 #include <QVBoxLayout>
 #include <QMouseEvent>
+#include <QLineEdit>
 #include <QtConcurrent/QtConcurrent>
 
 #include "ThumbWidget.h"
@@ -53,7 +54,19 @@ void BrowserWidget::initUi()
     connect(tree_, &QTreeView::clicked,
             this, &BrowserWidget::onDirectorySelected);
 
-    scrollArea_ = new QScrollArea(this);
+    // Right panel: path edit + thumbnails
+    auto* rightPanel = new QWidget(this);
+    auto* rightLayout = new QVBoxLayout(rightPanel);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(4);
+
+    pathEdit_ = new QLineEdit(rightPanel);
+    pathEdit_->setPlaceholderText(tr("Enter directory path..."));
+    connect(pathEdit_, &QLineEdit::returnPressed,
+            this, &BrowserWidget::onPathEditReturnPressed);
+    rightLayout->addWidget(pathEdit_);
+
+    scrollArea_ = new QScrollArea(rightPanel);
     scrollArea_->setWidgetResizable(true);
 
     thumbsWidget_ = new QWidget(scrollArea_);
@@ -62,9 +75,10 @@ void BrowserWidget::initUi()
     gridLayout_->setContentsMargins(4,4,4,4);
     thumbsWidget_->setLayout(gridLayout_);
     scrollArea_->setWidget(thumbsWidget_);
+    rightLayout->addWidget(scrollArea_);
 
     mainLayout->addWidget(tree_, 1);
-    mainLayout->addWidget(scrollArea_, 3);
+    mainLayout->addWidget(rightPanel, 3);
     setLayout(mainLayout);
 }
 
@@ -158,12 +172,11 @@ void BrowserWidget::ensureDirectoryLoaded(const QString& dirPath)
     cancelThumbnailLoading();
     currentDir_ = dirPath;
 
-    QModelIndex idx = fsModel_->index(dirPath);
-    if (idx.isValid()) {
-        tree_->setCurrentIndex(idx);
-        tree_->scrollTo(idx);
-        tree_->expand(idx);
-    }
+    // Update path edit
+    pathEdit_->setText(dirPath);
+
+    // Expand all parent nodes in tree and select current
+    expandPathInTree(dirPath);
 
     QLayoutItem* item;
     while ((item = gridLayout_->takeAt(0)) != nullptr) {
@@ -172,4 +185,57 @@ void BrowserWidget::ensureDirectoryLoaded(const QString& dirPath)
     }
 
     startLoadingThumbnails(dirPath);
+}
+
+void BrowserWidget::onPathEditReturnPressed()
+{
+    QString path = pathEdit_->text().trimmed();
+    if (path.isEmpty())
+        return;
+
+    // Handle ~ for home directory
+    if (path == "~")
+        path = QDir::homePath();
+    else if (path.startsWith("~/"))
+        path = QDir::homePath() + path.mid(1);
+
+    path = QDir::cleanPath(path);
+
+    QDir dir(path);
+    if (!dir.exists()) {
+        // Directory doesn't exist - restore previous path
+        pathEdit_->setText(currentDir_);
+        return;
+    }
+
+    ensureDirectoryLoaded(dir.absolutePath());
+}
+
+void BrowserWidget::expandPathInTree(const QString& path)
+{
+    // Expand all parent directories from root to target
+    QStringList parts = path.split('/', Qt::SkipEmptyParts);
+    QString currentPath;
+
+#ifdef Q_OS_WIN
+    if (!parts.isEmpty() && parts.first().contains(':'))
+        currentPath = parts.takeFirst() + "/";
+#else
+    currentPath = "/";
+#endif
+
+    for (const QString& part : parts) {
+        currentPath = QDir::cleanPath(currentPath + "/" + part);
+        QModelIndex idx = fsModel_->index(currentPath);
+        if (idx.isValid()) {
+            tree_->expand(idx);
+        }
+    }
+
+    // Select and scroll to final directory
+    QModelIndex finalIdx = fsModel_->index(path);
+    if (finalIdx.isValid()) {
+        tree_->setCurrentIndex(finalIdx);
+        tree_->scrollTo(finalIdx);
+    }
 }
