@@ -658,23 +658,37 @@ cv::Mat MainWindow::applyDoubleThresholdBW(const cv::Mat& src, int low, int high
     if (L > H)
         std::swap(L, H);
 
-    cv::Mat gray;
-    if (src.channels() == 3)
-        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = src.clone();
+    // For grayscale images - work directly
+    if (src.channels() == 1) {
+        cv::Mat dst = src.clone();
+        for (int y = 0; y < dst.rows; ++y) {
+            uchar* row = dst.ptr<uchar>(y);
+            for (int x = 0; x < dst.cols; ++x) {
+                uchar v = row[x];
+                if (v <= L)
+                    row[x] = 0;
+                else if (v >= H)
+                    row[x] = 255;
+            }
+        }
+        return dst;
+    }
 
-    cv::Mat dst = gray.clone();
+    // For color images - use gray for threshold check, modify color output
+    cv::Mat gray;
+    cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
+    cv::Mat dst = src.clone();
 
     for (int y = 0; y < dst.rows; ++y) {
-        uchar* row = dst.ptr<uchar>(y);
+        const uchar* grayRow = gray.ptr<uchar>(y);
+        cv::Vec3b* dstRow = dst.ptr<cv::Vec3b>(y);
         for (int x = 0; x < dst.cols; ++x) {
-            uchar v = row[x];
+            uchar v = grayRow[x];
             if (v <= L)
-                row[x] = 0;
+                dstRow[x] = cv::Vec3b(0, 0, 0);       // black
             else if (v >= H)
-                row[x] = 255;
-            // środek: bez zmian
+                dstRow[x] = cv::Vec3b(255, 255, 255); // white
+            // middle: keep original color
         }
     }
 
@@ -689,43 +703,46 @@ bool highColorize) {
     int H = std::clamp(high, 0, 255);
     if (L > H)
         std::swap(L, H);
+
+    // For grayscale images
+    if (src.channels() == 1) {
+        cv::Mat dst(src.size(), CV_8UC3);
+        for (int y = 0; y < src.rows; ++y) {
+            const uchar* srcRow = src.ptr<uchar>(y);
+            cv::Vec3b* dstRow = dst.ptr<cv::Vec3b>(y);
+            for (int x = 0; x < src.cols; ++x) {
+                uchar v = srcRow[x];
+                cv::Vec3b color(v, v, v);
+
+                if (v <= L) {
+                    color = lowColorize ? cv::Vec3b(0, 255, 255) : cv::Vec3b(0, 0, 0);
+                } else if (v >= H) {
+                    color = highColorize ? cv::Vec3b(0, 0, 255) : cv::Vec3b(255, 255, 255);
+                }
+                dstRow[x] = color;
+            }
+        }
+        return dst;
+    }
+
+    // For color images - use gray for threshold check, preserve original colors
     cv::Mat gray;
-    if (src.channels() == 3)
-        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = src.clone();
+    cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
+    cv::Mat dst = src.clone();
 
-    cv::Mat dst(gray.size(), CV_8UC3);
+    for (int y = 0; y < dst.rows; ++y) {
+        const uchar* grayRow = gray.ptr<uchar>(y);
+        cv::Vec3b* dstRow = dst.ptr<cv::Vec3b>(y);
 
-    for (int y = 0; y < gray.rows; ++y) {
-        const uchar* srcRow = gray.ptr<uchar>(y);
-        cv::Vec3b* dstRow   = dst.ptr<cv::Vec3b>(y);
-
-        for (int x = 0; x < gray.cols; ++x) {
-            uchar v = srcRow[x];
-
-            // domyślnie – szarość
-            cv::Vec3b color(v, v, v); // B=G=R=v
+        for (int x = 0; x < dst.cols; ++x) {
+            uchar v = grayRow[x];
 
             if (v <= L) {
-                if (lowColorize) {
-                    // żółty: BGR = (0,255,255)
-                    color = cv::Vec3b(0, 255, 255);
-                } else {
-                    // klasyczny czarny
-                    color = cv::Vec3b(0, 0, 0);
-                }
+                dstRow[x] = lowColorize ? cv::Vec3b(0, 255, 255) : cv::Vec3b(0, 0, 0);
             } else if (v >= H) {
-                if (highColorize) {
-                    // czerwony: BGR = (0,0,255)
-                    color = cv::Vec3b(0, 0, 255);
-                } else {
-                    // klasyczna biel
-                    color = cv::Vec3b(255, 255, 255);
-                }
+                dstRow[x] = highColorize ? cv::Vec3b(0, 0, 255) : cv::Vec3b(255, 255, 255);
             }
-
-            dstRow[x] = color;
+            // middle: keep original color (already in dst from clone)
         }
     }
 
