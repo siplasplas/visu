@@ -93,7 +93,7 @@ void BrowserWidget::startLoadingThumbnails(const QString& dirPath)
                     << "*.gif" << "*.webp" << "*.tif" << "*.tiff" << "*.avif";
 
         QStringList files = dir.entryList(nameFilters, QDir::Files, QDir::Name);
-        files.sort(Qt::CaseInsensitive);
+        files.sort(Qt::CaseSensitive);
 
         const int maxThumbW = 160;
         const int maxThumbH = 160;
