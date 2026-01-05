@@ -870,15 +870,6 @@ cv::Mat MainWindow::applyShadowCompression(const cv::Mat& src,
     maxOut = std::clamp(maxOut, 1, 254);
     if (gamma <= 0.0) gamma = 1.0;
 
-    // konwersja do gray
-    cv::Mat gray;
-    if (src.channels() == 3)
-        cv::cvtColor(src, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = src.clone();
-
-    CV_Assert(gray.type() == CV_8UC1);
-
     // LUT
     cv::Mat lut(1, 256, CV_8UC1);
     uchar* p = lut.ptr<uchar>();
@@ -887,7 +878,7 @@ cv::Mat MainWindow::applyShadowCompression(const cv::Mat& src,
         uchar out = 0;
 
         if (v == 255) {
-            // tło zostaje białe
+            // background stays white
             out = 255;
         } else {
             int vClamped = std::min(v, T);
@@ -904,8 +895,25 @@ cv::Mat MainWindow::applyShadowCompression(const cv::Mat& src,
         p[v] = out;
     }
 
+    // For grayscale images - apply LUT directly
+    if (src.channels() == 1) {
+        cv::Mat out;
+        cv::LUT(src, lut, out);
+        return out;
+    }
+
+    // For color images - apply LUT to each channel separately
+    std::vector<cv::Mat> channels;
+    cv::split(src, channels);
+
+    for (auto& ch : channels) {
+        cv::Mat processed;
+        cv::LUT(ch, lut, processed);
+        ch = processed;
+    }
+
     cv::Mat out;
-    cv::LUT(gray, lut, out);
+    cv::merge(channels, out);
     return out;
 }
 
