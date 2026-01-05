@@ -247,7 +247,7 @@ void MainWindow::scanDirectory(const QString& directory, const QString& startFil
     QDir dir(directory);
     QFileInfoList entries = dir.entryInfoList(
         QDir::Files | QDir::NoDotAndDotDot,
-        QDir::Name | QDir::IgnoreCase
+        QDir::Name
     );
 
     for (const QFileInfo& fi : entries) {
