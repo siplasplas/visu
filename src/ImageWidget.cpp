@@ -397,6 +397,13 @@ void ImageWidget::wheelEvent(QWheelEvent* event)
 
 void ImageWidget::mousePressEvent(QMouseEvent* event)
 {
+    if (event->button() == Qt::RightButton && hasImage_) {
+        updatePixelInfoAt(event->pos());
+        emit contextMenuRequested(event->globalPosition().toPoint());
+        event->accept();
+        return;
+    }
+
     if (event->button() == Qt::LeftButton &&
         zoomMode_ == ZoomMode::Fixed &&
         !qimage_.isNull()) {

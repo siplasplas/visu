@@ -136,10 +136,9 @@ void MainWindow::initUi()
     contextMenu_->addSeparator();
     contextMenu_->addAction("Copy position", this, &MainWindow::copyPosition);
 
-    statusBar()->setContextMenuPolicy(Qt::CustomContextMenu);
-    connect(statusBar(), &QWidget::customContextMenuRequested,
-            this, [this](const QPoint& pos) {
-                contextMenu_->exec(statusBar()->mapToGlobal(pos));
+    connect(imageWidget_, &ImageWidget::contextMenuRequested,
+            this, [this](const QPoint& globalPos) {
+                contextMenu_->exec(globalPos);
             });
 
     auto fileMenu = menuBar()->addMenu(tr("&File"));

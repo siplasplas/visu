@@ -30,6 +30,7 @@ public:
     void clearImage();
 signals:
     void pixelInfoChanged(int x, int y, int r, int g, int b);
+    void contextMenuRequested(const QPoint& globalPos);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
