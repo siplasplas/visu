@@ -22,6 +22,7 @@ class QMenu;
 class ImageWidget;
 class DoubleThresholdDialog;
 class ShadowCompressionDialog;
+class ColorMapDialog;
 class BrowserWidget;
 
 struct SaveAsRequest {
@@ -92,12 +93,16 @@ private:
     QAction* moveAct_;
     QAction* doubleThAct_;
     QAction* shadowCompAct_;
+    QAction* colorMapAct_;
 
     void openDirectory();
     void openFile();
 
     void openShadowCompressionDialog();
     cv::Mat applyShadowCompression(const cv::Mat& src, int T, double gamma, int maxOut);
+
+    void openColorMapDialog();
+    cv::Mat applyColorMap(const cv::Mat& src, const cv::Vec3b& srcColor, const cv::Vec3b& dstColor);
 
     void computeHistogram(const cv::Mat& gray);
     int estimateTFromHistogram() const;

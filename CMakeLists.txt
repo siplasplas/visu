@@ -46,6 +46,8 @@ add_executable(visu
         src/DoubleThresholdDialog.cpp
         src/ShadowCompressionDialog.h
         src/ShadowCompressionDialog.cpp
+        src/ColorMapDialog.h
+        src/ColorMapDialog.cpp
         src/BrowserWidget.cpp
         src/BrowserWidget.h
         src/ThumbWidget.cpp

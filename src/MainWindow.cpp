@@ -3,6 +3,7 @@
 #include "ImageWidget.h"
 #include "DoubleThresholdDialog.h"
 #include "ShadowCompressionDialog.h"
+#include "ColorMapDialog.h"
 #include "image_metrics.h"
 
 #include <array>
@@ -195,6 +196,12 @@ void MainWindow::initUi()
             this, &MainWindow::openShadowCompressionDialog);
     imageMenu->addAction(shadowCompAct_);
 
+    colorMapAct_ = new QAction(tr("Color Map..."), this);
+    colorMapAct_->setShortcut(QKeySequence(Qt::CTRL | Qt::Key_M));
+    connect(colorMapAct_, &QAction::triggered,
+            this, &MainWindow::openColorMapDialog);
+    imageMenu->addAction(colorMapAct_);
+
     auto helpMenu = menuBar()->addMenu(tr("&Help"));
     auto aboutAct = new QAction(tr("About"), this);
     connect(aboutAct, &QAction::triggered, this, [this]() {
@@ -221,6 +228,7 @@ void MainWindow::updateActionsForMode()
     const bool single = (stacked_->currentIndex() == 1);
     doubleThAct_->setEnabled(single);
     shadowCompAct_->setEnabled(single);
+    colorMapAct_->setEnabled(single);
     moveAct_->setEnabled(single);
 }
 
@@ -1886,4 +1894,116 @@ void MainWindow::dropEvent(QDropEvent* event)
     }
 
     event->ignore();
+}
+
+void MainWindow::openColorMapDialog()
+{
+    if (originalMat_.empty())
+        return;
+
+    bool isGrayscale = (originalMat_.channels() == 1);
+    auto* dlg = new ColorMapDialog(isGrayscale, this);
+
+    // Preview
+    connect(dlg, &ColorMapDialog::previewRequested,
+            this, [this](const cv::Vec3b& srcColor, const cv::Vec3b& dstColor) {
+                cv::Mat preview = applyColorMap(originalMat_, srcColor, dstColor);
+                currentMat_ = preview.clone();
+                imageWidget_->setImage(currentMat_, false);
+            });
+
+    connect(dlg, &QDialog::accepted,
+        this, [this, dlg]() {
+            cv::Vec3b srcColor, dstColor;
+
+            // Parse colors from dialog
+            QString srcText = dlg->sourceText();
+            QString dstText = dlg->destText();
+
+            bool isGrayscale = (originalMat_.channels() == 1);
+
+            if (isGrayscale) {
+                int srcVal = srcText.trimmed().toInt();
+                int dstVal = dstText.trimmed().toInt();
+                srcColor = cv::Vec3b(srcVal, srcVal, srcVal);
+                dstColor = cv::Vec3b(dstVal, dstVal, dstVal);
+            } else {
+                // Parse R, G, B
+                QStringList srcParts = srcText.split(',');
+                QStringList dstParts = dstText.split(',');
+                if (srcParts.size() == 3 && dstParts.size() == 3) {
+                    int r = srcParts[0].trimmed().toInt();
+                    int g = srcParts[1].trimmed().toInt();
+                    int b = srcParts[2].trimmed().toInt();
+                    srcColor = cv::Vec3b(b, g, r); // BGR order
+
+                    r = dstParts[0].trimmed().toInt();
+                    g = dstParts[1].trimmed().toInt();
+                    b = dstParts[2].trimmed().toInt();
+                    dstColor = cv::Vec3b(b, g, r);
+                }
+            }
+
+            cv::Mat result = applyColorMap(originalMat_, srcColor, dstColor);
+
+            originalMat_ = result.clone();
+            currentMat_  = originalMat_.clone();
+            imageWidget_->setImage(currentMat_, false);
+
+            imageDirty_ = true;
+            safeOnlyDirty_ = false;
+
+            cv::Mat gray;
+            if (originalMat_.channels() == 3)
+                cv::cvtColor(originalMat_, gray, cv::COLOR_BGR2GRAY);
+            else
+                gray = originalMat_;
+            computeHistogram(gray);
+
+            dlg->close();
+        });
+
+    // Cancel – restore original
+    connect(dlg, &QDialog::rejected,
+            this, [this, dlg]() {
+                if (!originalMat_.empty()) {
+                    currentMat_ = originalMat_.clone();
+                    imageWidget_->setImage(currentMat_, false);
+                }
+                dlg->close();
+            });
+
+    dlg->show();
+}
+
+cv::Mat MainWindow::applyColorMap(const cv::Mat& src, const cv::Vec3b& srcColor, const cv::Vec3b& dstColor)
+{
+    // For grayscale images
+    if (src.channels() == 1) {
+        cv::Mat dst = src.clone();
+        uchar srcVal = srcColor[0]; // All channels are the same for grayscale
+        uchar dstVal = dstColor[0];
+
+        for (int y = 0; y < dst.rows; ++y) {
+            uchar* row = dst.ptr<uchar>(y);
+            for (int x = 0; x < dst.cols; ++x) {
+                if (row[x] == srcVal) {
+                    row[x] = dstVal;
+                }
+            }
+        }
+        return dst;
+    }
+
+    // For color images
+    cv::Mat dst = src.clone();
+    for (int y = 0; y < dst.rows; ++y) {
+        cv::Vec3b* row = dst.ptr<cv::Vec3b>(y);
+        for (int x = 0; x < dst.cols; ++x) {
+            if (row[x] == srcColor) {
+                row[x] = dstColor;
+            }
+        }
+    }
+    return dst;
 }
