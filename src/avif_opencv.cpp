@@ -84,6 +84,9 @@ cv::Mat imreadAvif(const std::string& filename, int flags)
     // rgb.pixels -> cv::Mat (CV_8UC4)
     cv::Mat rgba = avifRGBToMat(rgb);
 
+    // Check if image is monochrome (YUV400 format has no chroma) before cleanup
+    bool isMonochrome = (image->yuvFormat == AVIF_PIXEL_FORMAT_YUV400);
+
     // Sprzątanie libavif
     avifRGBImageFreePixels(&rgb);
     avifDecoderDestroy(decoder);
@@ -102,6 +105,19 @@ cv::Mat imreadAvif(const std::string& filename, int flags)
     case cv::IMREAD_UNCHANGED: {
         // Return RGBA (CV_8UC4)
         result = rgba;
+        break;
+    }
+    case cv::IMREAD_ANYCOLOR: {
+        // Preserve original format: grayscale for monochrome, BGR for color
+        if (isMonochrome) {
+            cv::Mat gray;
+            cv::cvtColor(rgba, gray, cv::COLOR_RGBA2GRAY);
+            result = gray;
+        } else {
+            cv::Mat bgr;
+            cv::cvtColor(rgba, bgr, cv::COLOR_RGBA2BGR);
+            result = bgr;
+        }
         break;
     }
     case cv::IMREAD_COLOR:

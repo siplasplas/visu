@@ -278,9 +278,9 @@ cv::Mat MainWindow::loadAnyImage(const QString& path)
     QString ext = QFileInfo(path).suffix().toLower();
 
     if (ext == "avif") {
-        return imreadAvif(fn, cv::IMREAD_COLOR);
+        return imreadAvif(fn, cv::IMREAD_ANYCOLOR);
     } else {
-        return cv::imread(fn, cv::IMREAD_COLOR);
+        return cv::imread(fn, cv::IMREAD_ANYCOLOR);
     }
 }
 
