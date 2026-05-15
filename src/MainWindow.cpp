@@ -116,8 +116,10 @@ void MainWindow::initUi()
     rgbLabel_   = new QLabel(this);
     rgbHexLabel_   = new QLabel(this);
     indexLabel_ = new QLabel(this);
+    sizeLabel_  = new QLabel(this);
 
     statusBar()->addPermanentWidget(indexLabel_);
+    statusBar()->addPermanentWidget(sizeLabel_);
     statusBar()->addPermanentWidget(coordLabel_);
     statusBar()->addPermanentWidget(rgbLabel_);
     statusBar()->addPermanentWidget(rgbHexLabel_);
@@ -127,6 +129,7 @@ void MainWindow::initUi()
     rgbHexLabel_->setText("#######");
 
     indexLabel_->setText("0/0");
+    sizeLabel_->setText("");
 
     connect(imageWidget_, &ImageWidget::pixelInfoChanged,
             this, &MainWindow::onPixelInfoChanged);
@@ -340,6 +343,7 @@ void MainWindow::updateIndexLabel()
 {
     if (imageFiles_.isEmpty() || currentIndex_ < 0) {
         indexLabel_->setText("0/0");
+        sizeLabel_->setText("");
         return;
     }
 
@@ -350,6 +354,13 @@ void MainWindow::updateIndexLabel()
             .arg(imageFiles_.size())
             .arg(fi.fileName())
     );
+    if (!originalMat_.empty()) {
+        sizeLabel_->setText(QString("%1 x %2")
+            .arg(originalMat_.cols)
+            .arg(originalMat_.rows));
+    } else {
+        sizeLabel_->setText("");
+    }
 }
 
 void MainWindow::goToIndex(int index) {

@@ -79,6 +79,7 @@ private:
     QLabel* rgbLabel_   = nullptr;
     QLabel* rgbHexLabel_   = nullptr;
     QLabel* indexLabel_ = nullptr;
+    QLabel* sizeLabel_  = nullptr;
 
     QVector<QString> imageFiles_;
     int currentIndex_ = -1;
